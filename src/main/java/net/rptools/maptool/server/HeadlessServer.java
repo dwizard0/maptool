@@ -6,6 +6,7 @@ package net.rptools.maptool.server;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
+import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.CampaignFactory;
@@ -29,10 +30,13 @@ import org.apache.logging.log4j.Logger;
  * </ul>
  */
 public class HeadlessServer {
-  private static final Logger log = LogManager.getLogger(HeadlessServer.class);
 
   public static void main(String[] args) throws Exception {
     System.setProperty("java.awt.headless", "true");
+    // Must happen before any Logger is created, or log4j2.xml resolves ${sys:MAPTOOL_LOGDIR}
+    // to a directory literally named that.
+    AppUtil.initLogging();
+    Logger log = LogManager.getLogger(HeadlessServer.class);
     MapTool.setHeadless(true);
 
     int port = Integer.getInteger("maptool.port", ServerConfig.DEFAULT_PORT);

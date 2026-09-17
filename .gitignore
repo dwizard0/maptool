@@ -56,3 +56,4 @@ build-resources/rptools-keystore
 
 # headless server runtime dir
 run/
+${sys:MAPTOOL_LOGDIR}/
