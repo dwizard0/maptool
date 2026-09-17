@@ -35,6 +35,7 @@ import javax.crypto.NoSuchPaddingException;
 import javax.swing.*;
 import net.rptools.clientserver.simple.MessageHandler;
 import net.rptools.clientserver.simple.connection.Connection;
+import net.rptools.lib.EventDispatch;
 import net.rptools.lib.MD5Key;
 import net.rptools.lib.cipher.CipherUtil;
 import net.rptools.lib.cipher.CipherUtil.Key;
@@ -90,7 +91,7 @@ public class ClientHandshake implements Handshake<Void>, MessageHandler {
     whenComplete(
         (result, error) -> {
           connection.removeMessageHandler(this);
-          SwingUtilities.invokeLater(this::closeEasyConnectDialog);
+          EventDispatch.invokeLater(this::closeEasyConnectDialog);
         });
   }
 
@@ -236,7 +237,7 @@ public class ClientHandshake implements Handshake<Void>, MessageHandler {
   }
 
   private void handle(PublicKeyAddedMsg publicKeyAddedMsg) {
-    SwingUtilities.invokeLater(this::closeEasyConnectDialog);
+    EventDispatch.invokeLater(this::closeEasyConnectDialog);
     startHandshakeInternal();
   }
 
@@ -248,7 +249,7 @@ public class ClientHandshake implements Handshake<Void>, MessageHandler {
     sendMessage(
         State.AwaitingPublicKeyAddition,
         HandshakeMsg.newBuilder().setPublicKeyUploadMsg(publicKeyUploadBuilder).build());
-    SwingUtilities.invokeLater(
+    EventDispatch.invokeLater(
         () -> {
           JOptionPane pane = new JOptionPane();
           pane.setOptions(new Object[] {}); // No buttons
@@ -376,7 +377,7 @@ public class ClientHandshake implements Handshake<Void>, MessageHandler {
                   var addOnLibrary = new AddOnLibraryImporter().importFromAsset(asset);
                   libraryManager.reregisterAddOnLibrary(addOnLibrary);
                 } catch (IOException e) {
-                  SwingUtilities.invokeLater(
+                  EventDispatch.invokeLater(
                       () -> {
                         MapTool.showError(
                             I18N.getText(

@@ -24,7 +24,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
-import javax.swing.SwingUtilities;
+import net.rptools.lib.EventDispatch;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.events.MapToolEventBus;
 import net.rptools.maptool.language.I18N;
@@ -87,7 +87,7 @@ public class LibraryTokenManager {
   private class TokenEventListener {
     @Subscribe
     public void tokensAdded(TokensAdded event) {
-      SwingUtilities.invokeLater(
+      EventDispatch.invokeLater(
           () -> {
             addTokens(
                 event.tokens().stream()
@@ -99,7 +99,7 @@ public class LibraryTokenManager {
 
     @Subscribe
     public void tokensRemoved(TokensRemoved event) {
-      SwingUtilities.invokeLater(
+      EventDispatch.invokeLater(
           () -> {
             removeTokens(
                 event.tokens().stream()
@@ -111,7 +111,7 @@ public class LibraryTokenManager {
 
     @Subscribe
     public void tokensChanged(TokensChanged event) {
-      SwingUtilities.invokeLater(
+      EventDispatch.invokeLater(
           () -> {
             changeTokens(
                 event.tokens().stream()
@@ -155,7 +155,7 @@ public class LibraryTokenManager {
   }
 
   public void init() {
-    SwingUtilities.invokeLater(
+    EventDispatch.invokeLater(
         () -> {
           var tokens = new ArrayList<Token>();
           for (var zone : MapTool.getCampaign().getZones()) {

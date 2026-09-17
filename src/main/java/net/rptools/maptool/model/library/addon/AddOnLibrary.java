@@ -32,6 +32,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.script.ScriptException;
 import javax.swing.SwingUtilities;
+import net.rptools.lib.EventDispatch;
 import net.rptools.lib.MD5Key;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolMacroContext;
@@ -663,7 +664,7 @@ public class AddOnLibrary implements Library {
         throw new CompletionException(e);
       }
     } else {
-      SwingUtilities.invokeLater(
+      EventDispatch.invokeLater(
           () -> {
             var resolver = new MapToolVariableResolver(null);
             try {

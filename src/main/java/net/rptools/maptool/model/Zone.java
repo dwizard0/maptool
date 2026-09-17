@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.swing.*;
+import net.rptools.lib.EventDispatch;
 import net.rptools.lib.GeometryUtil;
 import net.rptools.lib.MD5Key;
 import net.rptools.lib.StringUtil;
@@ -725,7 +726,7 @@ public class Zone {
     this.grid = grid;
     grid.setZone(this);
     // invoke later to prevent firing with null zone during initialisation
-    SwingUtilities.invokeLater(
+    EventDispatch.invokeLater(
         () -> new MapToolEventBus().getMainEventBus().post(new GridChanged(this)));
   }
 
