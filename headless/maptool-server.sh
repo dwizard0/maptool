@@ -63,7 +63,7 @@ PROPS=(
 
 cd "$HERE"
 exec "$JAVA_BIN" \
-  -Xss8M "-Xmx$HEAP" \
+  -Xss8M "-Xmx$HEAP" ${MAPTOOL_JVM_OPTS:-} \
   "${OPENS[@]}" \
   "${PROPS[@]}" \
   -cp "$(cat "$CP_FILE")" \

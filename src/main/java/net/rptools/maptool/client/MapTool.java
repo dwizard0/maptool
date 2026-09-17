@@ -446,6 +446,12 @@ public class MapTool {
   public static int confirmImpl(String title, int buttons, String message, Object... params) {
     String msg = I18N.getText(message, params);
     log.debug(message);
+    if (headless) {
+      // Nobody can answer a modal dialog on a server. Decline rather than auto-confirming:
+      // several callers treat a positive answer as permission to overwrite or delete.
+      log.warn("Headless: declining confirmation prompt: {}", msg);
+      return JOptionPane.CANCEL_OPTION;
+    }
     return JOptionPane.showConfirmDialog(clientFrame, msg, title, buttons);
   }
 
@@ -790,6 +796,11 @@ public class MapTool {
     }
 
     return logConsoleFrame;
+  }
+
+  /** Override the reported version. Used by headless entry points that never run main(). */
+  public static void setVersion(String v) {
+    version = v;
   }
 
   public static String getVersion() {

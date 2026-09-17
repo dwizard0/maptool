@@ -523,8 +523,9 @@ tasks.withType(Test).configureEach {
 }
 
 tasks.register("headlessClasspath") {
+    dependsOn tasks.jar
     doLast {
-        file("build/headless-classpath.txt").text = sourceSets.main.runtimeClasspath.asPath
+        file("build/headless-classpath.txt").text = tasks.jar.archiveFile.get().asFile.path + File.pathSeparator + sourceSets.main.runtimeClasspath.asPath
         println "headless classpath entries: " + sourceSets.main.runtimeClasspath.files.size()
     }
 }

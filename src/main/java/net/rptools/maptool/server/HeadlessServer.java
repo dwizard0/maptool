@@ -46,6 +46,17 @@ public class HeadlessServer {
     Logger log = LogManager.getLogger(HeadlessServer.class);
     MapTool.setHeadless(true);
 
+    // MapTool.main() reads the version from the jar manifest; a headless entry point never runs
+    // it, and running from build/classes has no manifest at all. ServerHandshake compares version
+    // strings exactly, so without this the server reports DEVELOPMENT and rejects every client.
+    String manifestVersion = MapTool.class.getPackage().getImplementationVersion();
+    String versionOverride = System.getProperty("maptool.version");
+    if (versionOverride != null) {
+      MapTool.setVersion(versionOverride);
+    } else if (manifestVersion != null) {
+      MapTool.setVersion(manifestVersion.trim());
+    }
+
     // Same startup steps MapTool.initialize() does, minus everything that builds a UI.
     ImageIO.setUseCache(false);
 
@@ -111,6 +122,7 @@ public class HeadlessServer {
 
     server.start();
     log.info("Headless MapTool server listening on port {}", port);
+    log.info("Reporting version: {}", MapTool.getVersion());
     log.info("Campaign has {} zone(s)", campaign.getZones().size());
 
     new CountDownLatch(1).await();

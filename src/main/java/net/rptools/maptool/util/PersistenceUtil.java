@@ -1046,7 +1046,16 @@ public class PersistenceUtil {
     // file, warn the user. :)
     if (!MapTool.isDevelopment() && ModelVersionManager.isBefore(mtversion, cleanedProgVersion)) {
       // Give the user a chance to abort this attempt to load the file
-      okay = MapTool.confirm("msg.confirm.newerVersion", MapTool.getVersion(), progVersion);
+      if (MapTool.isHeadless()) {
+        // No one is there to answer. A server must load the campaign it was told to load, so
+        // record the mismatch and proceed rather than blocking on a modal dialog.
+        log.warn(
+            "Campaign was written by version {} which is newer than this build ({}); loading anyway",
+            progVersion,
+            MapTool.getVersion());
+      } else {
+        okay = MapTool.confirm("msg.confirm.newerVersion", MapTool.getVersion(), progVersion);
+      }
     }
     return okay;
   }
