@@ -29,12 +29,12 @@ import java.util.function.BiConsumer;
 import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
-import javax.swing.SwingUtilities;
 import net.rptools.clientserver.simple.MessageHandler;
 import net.rptools.clientserver.simple.connection.Connection;
 import net.rptools.lib.MD5Key;
 import net.rptools.lib.cipher.CipherUtil;
 import net.rptools.lib.cipher.CipherUtil.Key;
+import net.rptools.maptool.client.EventDispatcher;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.language.I18N;
 import net.rptools.maptool.model.gamedata.DataStoreManager;
@@ -126,7 +126,7 @@ public class ServerHandshake implements Handshake<Player>, MessageHandler {
           connection.removeMessageHandler(this);
 
           if (getEasyConnectName() != null) {
-            SwingUtilities.invokeLater(
+            EventDispatcher.invokeLater(
                 () ->
                     MapTool.getFrame()
                         .getConnectionPanel()
@@ -237,7 +237,7 @@ public class ServerHandshake implements Handshake<Player>, MessageHandler {
             publicKeyUploadMsg.getPublicKey(),
             this::acceptNewPublicKey,
             this::denyNewPublicKey);
-    SwingUtilities.invokeLater(
+    EventDispatcher.invokeLater(
         () -> MapTool.getFrame().getConnectionPanel().addAwaitingApproval(pendingPlayer));
   }
 

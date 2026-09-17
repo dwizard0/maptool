@@ -521,3 +521,10 @@ tasks.withType(Test).configureEach {
         showStackTraces true
     }
 }
+
+tasks.register("dumpRuntimeClasspath") {
+    doLast {
+        file("/tmp/mt-cp.txt").text = sourceSets.main.runtimeClasspath.asPath
+        println "classpath entries: " + sourceSets.main.runtimeClasspath.files.size()
+    }
+}

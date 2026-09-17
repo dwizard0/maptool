@@ -187,6 +187,20 @@ public class MapTool {
   private static String loadCampaignOnStartPath = "";
   @Nullable private static RemoteServerConfig remoteServerConfig = null;
 
+  /** True when running with no Swing frame, e.g. a headless server. */
+  private static volatile boolean headless = false;
+
+  /**
+   * @return true if there is no client frame and no event dispatch thread.
+   */
+  public static boolean isHeadless() {
+    return headless;
+  }
+
+  public static void setHeadless(boolean value) {
+    headless = value;
+  }
+
   static {
     keyStore =
         new PublicPrivateKeyStore(
@@ -269,6 +283,10 @@ public class MapTool {
   public static void showMessage(
       String message, String titleKey, int messageType, Object... params) {
     String title = I18N.getText(titleKey, params);
+    if (headless) {
+      log.info("{}: {}", title, I18N.getText(message, params));
+      return;
+    }
     JOptionPane.showMessageDialog(
         clientFrame, "<html>" + I18N.getText(message, params), title, messageType);
   }
@@ -291,6 +309,12 @@ public class MapTool {
   public static void showMessage(
       Object[] messages, String titleKey, int messageType, Object... params) {
     String title = I18N.getText(titleKey, params);
+    if (headless) {
+      for (Object m : messages) {
+        log.info("{}: {}", title, m);
+      }
+      return;
+    }
     JList list = new JList(messages);
     JOptionPane.showMessageDialog(clientFrame, list, title, messageType);
   }
