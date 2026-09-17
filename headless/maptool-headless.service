@@ -15,11 +15,15 @@ WorkingDirectory=/home/freeman/maptool-headless
 # NoClassDefFoundError: net/rptools/clientserver/simple/connection/Connection
 Environment=JAVA_BIN=/usr/lib/jvm/bellsoft-java21-full-amd64/bin/java
 Environment=MAPTOOL_PORT=51234
-Environment=MAPTOOL_NAME=MapTool Headless
+Environment="MAPTOOL_NAME=MapTool Headless"
 Environment=MAPTOOL_AUTOSAVE_MINUTES=5
 Environment=MAPTOOL_BACKUPS=true
 Environment=MAPTOOL_REGISTER=false
 Environment=MAPTOOL_HEAP=2G
+
+# ServerHandshake compares version strings EXACTLY. Pin this to whatever the
+# client build reports, or rebuild clients whenever the server is rebuilt.
+Environment=MAPTOOL_JVM_OPTS=-Dmaptool.version=NIGHTLY-b740c4a42d
 Environment=MAPTOOL_SAVE=/home/freeman/maptool-headless/run/data/server/campaign.cmpgn
 Environment=MAPTOOL_CAMPAIGN=/home/freeman/maptool-headless/run/data/server/campaign.cmpgn
 
@@ -32,6 +36,9 @@ ExecStart=/home/freeman/maptool-headless/headless/maptool-server.sh
 # The final campaign save runs in a JVM shutdown hook. Give it room: a large
 # campaign with many assets takes longer than the default 90s grace period.
 KillSignal=SIGTERM
+# The JVM exits 128+15 on SIGTERM. Without this every clean stop is recorded as a
+# failure, and Restart=on-failure cannot tell a deliberate stop from a crash.
+SuccessExitStatus=143
 TimeoutStopSec=180
 
 Restart=on-failure
