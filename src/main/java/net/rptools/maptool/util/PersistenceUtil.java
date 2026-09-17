@@ -404,7 +404,8 @@ public class PersistenceUtil {
             persistedCampaign.campaign = campaign;
 
             // Keep track of the current view
-            ZoneRenderer currentZoneRenderer = MapTool.getFrame().getCurrentZoneRenderer();
+            ZoneRenderer currentZoneRenderer =
+                MapTool.isHeadless() ? null : MapTool.getFrame().getCurrentZoneRenderer();
             if (currentZoneRenderer != null) {
               persistedCampaign.currentZoneId = currentZoneRenderer.getZone().getId();
               persistedCampaign.currentView = currentZoneRenderer.getViewModel().getZoneScale();

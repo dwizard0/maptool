@@ -86,13 +86,28 @@ public class HeadlessServer {
     MapToolServer server =
         new MapToolServer(null, new Campaign(campaign), config, false, policy, playerDb);
 
+    File saveTarget =
+        new File(
+            System.getProperty(
+                "maptool.save",
+                new File(AppUtil.getAppHome("server"), "campaign.cmpgn").getPath()));
+    CampaignPersister persister =
+        new CampaignPersister(
+            server,
+            saveTarget,
+            Integer.getInteger("maptool.autosaveMinutes", 5),
+            !"false".equals(System.getProperty("maptool.backups")));
+    persister.start();
+
     Runtime.getRuntime()
         .addShutdownHook(
             new Thread(
                 () -> {
-                  log.info("Shutting down headless server");
+                  log.info("Stopping headless server");
+                  persister.shutdown();
                   server.stop();
                 }));
+
 
     server.start();
     log.info("Headless MapTool server listening on port {}", port);

@@ -609,6 +609,9 @@ public class MapTool {
   }
 
   public static BufferedImage takeMapScreenShot(final PlayerView view) {
+    if (headless) {
+      return null;
+    }
     final ZoneRenderer renderer = clientFrame.getCurrentZoneRenderer();
     if (renderer == null) {
       return null;
