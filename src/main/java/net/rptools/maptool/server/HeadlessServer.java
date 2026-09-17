@@ -6,10 +6,17 @@ package net.rptools.maptool.server;
 
 import java.io.File;
 import java.util.concurrent.CountDownLatch;
+import java.net.URL;
+import javax.imageio.ImageIO;
+import net.rptools.lib.net.RPTURLStreamHandlerFactory;
+import net.rptools.maptool.client.AssetURLStreamHandler;
+import net.rptools.maptool.client.AppSetup;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.CampaignFactory;
+import net.rptools.maptool.model.library.LibraryManager;
+import net.rptools.maptool.model.library.url.LibraryURLStreamHandler;
 import net.rptools.maptool.model.player.DefaultPlayerDatabase;
 import net.rptools.maptool.util.PersistenceUtil;
 import org.apache.logging.log4j.LogManager;
@@ -38,6 +45,19 @@ public class HeadlessServer {
     AppUtil.initLogging();
     Logger log = LogManager.getLogger(HeadlessServer.class);
     MapTool.setHeadless(true);
+
+    // Same startup steps MapTool.initialize() does, minus everything that builds a UI.
+    ImageIO.setUseCache(false);
+
+    // asset:// and lib:// are needed by built-in libraries and stat sheets. MapTool.main()
+    // registers these before initialize(); nothing else does.
+    RPTURLStreamHandlerFactory factory = new RPTURLStreamHandlerFactory();
+    factory.registerProtocol("asset", new AssetURLStreamHandler());
+    factory.registerProtocol("lib", new LibraryURLStreamHandler());
+    URL.setURLStreamHandlerFactory(factory);
+
+    AppSetup.install();
+    LibraryManager.init();
 
     int port = Integer.getInteger("maptool.port", ServerConfig.DEFAULT_PORT);
     // A non-null serverName sets ServerConfig.isServerRegistered(), which publishes this server
