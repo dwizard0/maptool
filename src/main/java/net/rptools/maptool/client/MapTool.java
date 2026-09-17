@@ -1290,6 +1290,14 @@ public class MapTool {
     }
   }
 
+  /** Set the status-bar text. A no-op when there is no frame, e.g. a headless server. */
+  public static void setStatusMessage(String message) {
+    if (headless || clientFrame == null) {
+      return;
+    }
+    clientFrame.setStatusMessage(message);
+  }
+
   public static MapToolFrame getFrame() {
     return clientFrame;
   }

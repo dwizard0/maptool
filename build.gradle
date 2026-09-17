@@ -522,9 +522,9 @@ tasks.withType(Test).configureEach {
     }
 }
 
-tasks.register("dumpRuntimeClasspath") {
+tasks.register("headlessClasspath") {
     doLast {
-        file("/tmp/mt-cp.txt").text = sourceSets.main.runtimeClasspath.asPath
-        println "classpath entries: " + sourceSets.main.runtimeClasspath.files.size()
+        file("build/headless-classpath.txt").text = sourceSets.main.runtimeClasspath.asPath
+        println "headless classpath entries: " + sourceSets.main.runtimeClasspath.files.size()
     }
 }

@@ -797,7 +797,7 @@ public class AssetManager {
       try {
         if (fileFilter.accept(rootDir, file.getName())) {
           if (MapTool.getFrame() != null) {
-            MapTool.getFrame().setStatusMessage("Caching image reference: " + file.getName());
+            MapTool.setStatusMessage("Caching image reference: " + file.getName());
           }
           rememberLocalImageReference(file);
         }
@@ -807,7 +807,7 @@ public class AssetManager {
     }
     // Done
     if (MapTool.getFrame() != null) {
-      MapTool.getFrame().setStatusMessage("");
+      MapTool.setStatusMessage("");
     }
   }
 

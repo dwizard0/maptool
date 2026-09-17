@@ -33,8 +33,10 @@ public class CampaignManager {
    * campaign is about to be loaded, sent from the server, or a new campaign is created.
    */
   public void clearCampaignData() {
-    MapTool.getFrame().getOverlayPanel().removeAllOverlays();
-    MapTool.getFrame().getLookupTablePanel().reset();
+    if (!MapTool.isHeadless()) {
+      MapTool.getFrame().getOverlayPanel().removeAllOverlays();
+      MapTool.getFrame().getLookupTablePanel().reset();
+    }
     JSScriptEngine.resetContexts();
     new LibraryManager().deregisterAllLibraries();
     new DataStoreManager().getDefaultDataStoreForRemoteUpdate().clear();

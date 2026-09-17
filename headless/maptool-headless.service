@@ -1,0 +1,50 @@
+[Unit]
+Description=MapTool Headless Server
+Documentation=https://github.com/RPTools/maptool
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=freeman
+Group=freeman
+WorkingDirectory=/home/freeman/maptool-headless
+
+# Built by: ./gradlew classes :clientserver:jar :common:jar :dicelib:jar :messages:jar headlessClasspath
+# The subproject jars must exist or startup fails with
+# NoClassDefFoundError: net/rptools/clientserver/simple/connection/Connection
+Environment=JAVA_BIN=/usr/lib/jvm/bellsoft-java21-full-amd64/bin/java
+Environment=MAPTOOL_PORT=51234
+Environment=MAPTOOL_NAME=MapTool Headless
+Environment=MAPTOOL_AUTOSAVE_MINUTES=5
+Environment=MAPTOOL_BACKUPS=true
+Environment=MAPTOOL_REGISTER=false
+Environment=MAPTOOL_HEAP=2G
+Environment=MAPTOOL_SAVE=/home/freeman/maptool-headless/run/data/server/campaign.cmpgn
+Environment=MAPTOOL_CAMPAIGN=/home/freeman/maptool-headless/run/data/server/campaign.cmpgn
+
+# Passwords do not belong in a unit file that lives in git. Put
+# MAPTOOL_GM_PASSWORD and MAPTOOL_PLAYER_PASSWORD here, mode 0600.
+EnvironmentFile=-/etc/maptool-headless.env
+
+ExecStart=/home/freeman/maptool-headless/headless/maptool-server.sh
+
+# The final campaign save runs in a JVM shutdown hook. Give it room: a large
+# campaign with many assets takes longer than the default 90s grace period.
+KillSignal=SIGTERM
+TimeoutStopSec=180
+
+Restart=on-failure
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=maptool-headless
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
