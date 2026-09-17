@@ -7,6 +7,8 @@ package net.rptools.maptool.client;
 import java.awt.EventQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Serial task dispatcher used by server-side message handling.
@@ -19,6 +21,8 @@ import java.util.concurrent.Executors;
  * <p>This exists so that server-side code does not have to know which it is running under.
  */
 public class EventDispatcher {
+  private static final Logger log = LogManager.getLogger(EventDispatcher.class);
+
   private static ExecutorService headlessQueue;
 
   private static synchronized ExecutorService headlessQueue() {
@@ -41,7 +45,17 @@ public class EventDispatcher {
    */
   public static void invokeLater(Runnable task) {
     if (MapTool.isHeadless()) {
-      headlessQueue().execute(task);
+      // The EDT logs uncaught exceptions and keeps running. A bare execute() would let one
+      // bad task kill the worker thread, so match the EDT and swallow-with-logging here.
+      headlessQueue()
+          .execute(
+              () -> {
+                try {
+                  task.run();
+                } catch (Throwable t) {
+                  log.error("Uncaught exception in dispatched task", t);
+                }
+              });
     } else {
       EventQueue.invokeLater(task);
     }
