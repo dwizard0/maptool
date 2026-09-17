@@ -24,15 +24,20 @@ import org.apache.logging.log4j.Logger;
 /**
  * Runs tasks serially, off the calling thread.
  *
- * <p>Much of MapTool schedules work with {@code EventQueue.invokeLater} not because the work is
- * graphical, but because the event dispatch thread is a convenient serial queue that guarantees
- * ordering. That is a reasonable thing to want from non-graphical code, but it ties that code to
- * AWT and makes it fail in a JVM started with {@code -Djava.awt.headless=true}, where there is no
- * event dispatch thread.
+ * <p>Much of MapTool schedules work with {@code EventQueue.invokeLater}. In a Swing client the
+ * event dispatch thread is the single thread that the UI, the model and the macro system are all
+ * confined to, and that confinement is load-bearing rather than incidental: mutating the model
+ * dispatches events synchronously to subscribers that include live Swing components, so the work is
+ * graphical whether or not the caller looks like it.
  *
- * <p>This class provides the ordering guarantee without the dependency. When a display is present
- * it delegates to the EDT, so behaviour in a normal client is unchanged. When the JVM is headless
- * it uses a single-threaded executor instead.
+ * <p>This class does not change that. It removes only the hard dependency on AWT being present, so
+ * that the same code can also run in a JVM started with {@code -Djava.awt.headless=true}, where
+ * there is no event dispatch thread to delegate to. With a display available it delegates to the
+ * EDT and behaviour is unchanged; headless it falls back to a single-threaded executor.
+ *
+ * <p>That fallback preserves ordering, not thread confinement. Code reachable from the model that
+ * assumes it is running on the EDT would need auditing before a headless mode could be considered
+ * sound.
  *
  * <p>Exceptions are handled the way the EDT handles them: logged, with the queue continuing. A bare
  * {@code ExecutorService.execute} would instead let one failing task terminate the worker thread,
