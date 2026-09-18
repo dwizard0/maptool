@@ -68,7 +68,6 @@ public class HeadlessServer {
     URL.setURLStreamHandlerFactory(factory);
 
     AppSetup.install();
-    LibraryManager.init();
 
     int port = Integer.getInteger("maptool.port", ServerConfig.DEFAULT_PORT);
     // A non-null serverName sets ServerConfig.isServerRegistered(), which publishes this server
@@ -96,6 +95,17 @@ public class HeadlessServer {
 
     MapToolServer server =
         new MapToolServer(null, new Campaign(campaign), config, false, policy, playerDb);
+
+    // Model code resolves tokens and libraries through MapTool.getCampaign(), which reads the
+    // static client, not the server. Without this, LibraryToken.findLibrary() and any macro
+    // touching a lib:token search the empty personal-server campaign instead. Point the client
+    // at the server's own instance so both see the same state.
+    MapTool.getClient().setCampaign(server.getCampaign());
+
+    // Deferred until the campaign is in place: LibraryTokenManager.init() scans
+    // MapTool.getCampaign() for lib: tokens and only then subscribes to token events. Called
+    // earlier, load-time events fired against an empty campaign and every lib:token failed.
+    LibraryManager.init();
 
     File saveTarget =
         new File(
