@@ -11,9 +11,13 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import net.rptools.maptool.client.EventDispatcher;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.util.PersistenceUtil;
 import org.apache.logging.log4j.LogManager;
@@ -25,9 +29,15 @@ import org.apache.logging.log4j.Logger;
  * <p>A GUI MapTool has a GM who can hit save; a headless server has nobody, so without this a crash
  * or restart loses the whole session. Saves are written to a temp file and then moved into place, so
  * an interrupted save cannot destroy the previous good copy.
+ *
+ * <p>The campaign model is not thread safe and is only modified on the model thread (the EDT in a
+ * GUI, the dispatch thread when headless). This follows the same pattern as {@code
+ * AutoSaveManager}: the campaign is copied on the model thread, and only the copy is serialized on
+ * the autosave thread, so incoming changes cannot race the save.
  */
 public class CampaignPersister {
   private static final Logger log = LogManager.getLogger(CampaignPersister.class);
+  private static final long COPY_TIMEOUT_SECONDS = 60;
   private static final DateTimeFormatter STAMP =
       DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
@@ -83,7 +93,7 @@ public class CampaignPersister {
 
   /** Write the campaign, atomically replacing any previous copy. */
   public synchronized void save() throws IOException {
-    Campaign campaign = server.getCampaign();
+    Campaign campaign = copyOnModelThread();
     if (campaign == null) {
       log.warn("No campaign to save");
       return;
@@ -118,6 +128,37 @@ public class CampaignPersister {
       if (tmp.exists() && !tmp.delete()) {
         log.debug("Could not remove temp save file {}", tmp);
       }
+    }
+  }
+
+  /**
+   * Copy the server's campaign on the model thread and wait for the copy.
+   *
+   * @return a snapshot safe to serialize off the model thread, or null if there is no campaign
+   */
+  private Campaign copyOnModelThread() throws IOException {
+    CompletableFuture<Campaign> copy = new CompletableFuture<>();
+    EventDispatcher.invokeLater(
+        () -> {
+          try {
+            Campaign live = server.getCampaign();
+            copy.complete(live == null ? null : new Campaign(live));
+          } catch (Throwable t) {
+            copy.completeExceptionally(t);
+          }
+        });
+    long start = System.currentTimeMillis();
+    try {
+      Campaign result = copy.get(COPY_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+      log.debug("Copied campaign on model thread in {} ms", System.currentTimeMillis() - start);
+      return result;
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+      throw new IOException("Interrupted waiting for campaign copy", e);
+    } catch (ExecutionException e) {
+      throw new IOException("Campaign copy failed", e.getCause());
+    } catch (TimeoutException e) {
+      throw new IOException("Timed out waiting for the model thread to copy the campaign", e);
     }
   }
 }
