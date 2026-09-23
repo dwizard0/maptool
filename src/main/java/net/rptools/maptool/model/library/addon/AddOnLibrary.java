@@ -31,8 +31,8 @@ import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javax.script.ScriptException;
-import javax.swing.SwingUtilities;
 import net.rptools.lib.MD5Key;
+import net.rptools.lib.ModelThread;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolMacroContext;
 import net.rptools.maptool.client.MapToolVariableResolver;
@@ -655,7 +655,7 @@ public class AddOnLibrary implements Library {
    * @return a CompletableFuture that completes when the function MacroScript function has finished
    */
   private CompletableFuture<Void> callMTSFunction(String name) {
-    if (SwingUtilities.isEventDispatchThread()) {
+    if (ModelThread.isModelThread()) {
       var resolver = new MapToolVariableResolver(null);
       try {
         MapTool.getParser().runMacro(resolver, null, name + "@lib:" + namespace, "");
@@ -663,7 +663,7 @@ public class AddOnLibrary implements Library {
         throw new CompletionException(e);
       }
     } else {
-      SwingUtilities.invokeLater(
+      ModelThread.invokeLater(
           () -> {
             var resolver = new MapToolVariableResolver(null);
             try {
