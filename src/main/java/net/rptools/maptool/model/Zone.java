@@ -27,8 +27,8 @@ import javax.annotation.Nullable;
 import javax.swing.*;
 import net.rptools.lib.GeometryUtil;
 import net.rptools.lib.MD5Key;
+import net.rptools.lib.ModelThread;
 import net.rptools.lib.StringUtil;
-import net.rptools.maptool.client.EventDispatcher;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.tool.drawing.UndoPerZone;
@@ -726,7 +726,7 @@ public class Zone {
     this.grid = grid;
     grid.setZone(this);
     // invoke later to prevent firing with null zone during initialisation
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> new MapToolEventBus().getMainEventBus().post(new GridChanged(this)));
   }
 
@@ -1989,7 +1989,7 @@ public class Zone {
 
   public void optimize() {
     log.debug("Optimizing Map " + getName());
-    MapTool.setStatusMessage(I18N.getText("Zone.status.optimizing", getName()));
+    MapTool.getFrame().setStatusMessage(I18N.getText("Zone.status.optimizing", getName()));
     collapseDrawables();
   }
 

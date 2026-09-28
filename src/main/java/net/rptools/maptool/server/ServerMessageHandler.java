@@ -23,7 +23,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import net.rptools.clientserver.simple.MessageHandler;
 import net.rptools.lib.MD5Key;
-import net.rptools.maptool.client.EventDispatcher;
+import net.rptools.lib.ModelThread;
 import net.rptools.maptool.client.ClientMessageHandler;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.ServerCommandClientImpl;
@@ -284,7 +284,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateExposedAreaMetaMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.setExposedAreaMetaData(
@@ -294,7 +294,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateGmMacrosMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var campaignMacros =
               msg.getMacrosList().stream()
@@ -305,7 +305,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateCampaignMacrosMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var campaignMacros =
               msg.getMacrosList().stream()
@@ -316,7 +316,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateTokenInitiativeMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           var tokenId = GUID.valueOf(msg.getTokenGuid());
@@ -336,14 +336,14 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateInitiativeMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           if (msg.hasList()) {
             var list = InitiativeList.fromDto(msg.getList());
             if (list.getZone() == null) return;
             Zone zone = server.getCampaign().getZone(list.getZone().getId());
             zone.setInitiativeList(list);
-          } else if (msg.hasOwnerPermission() && !MapTool.isHeadless()) {
+          } else if (msg.hasOwnerPermission()) {
             MapTool.getFrame()
                 .getInitiativePanel()
                 .setOwnerPermissions(msg.getOwnerPermission().getValue());
@@ -352,7 +352,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateCampaignMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server
               .getCampaign()
@@ -361,13 +361,11 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetServerPolicyMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server.updateServerPolicy(
               ServerPolicy.fromDto(msg.getPolicy())); // updates the server policy, fixes #1648
-          if (!MapTool.isHeadless()) {
-            MapTool.getFrame().getToolbox().updateTools();
-          }
+          MapTool.getFrame().getToolbox().updateTools();
         });
   }
 
@@ -385,7 +383,7 @@ public class ServerMessageHandler implements MessageHandler {
     // or flushing it entirely in the new zone. We'll save all of this for a separate patch against
     // 1.3 or
     // for 1.4.
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.removeDrawable(GUID.valueOf(msg.getDrawableGuid()));
@@ -393,7 +391,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetZoneVisibilityMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server
               .getCampaign()
@@ -403,7 +401,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateTokenPropertyMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           Token token = zone.getToken(GUID.valueOf(msg.getTokenGuid()));
@@ -415,7 +413,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateDrawingMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.updateDrawable(DrawnElement.fromDto(msg.getDrawing()), Pen.fromDto(msg.getPen()));
@@ -423,7 +421,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetZoneHasFowMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.setHasFog(msg.getHasFow());
@@ -431,7 +429,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetZoneGridSizeMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           if (zone != null) {
@@ -444,7 +442,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetVisionTypeMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.setVisionType(VisionType.valueOf(msg.getVision().name()));
@@ -452,7 +450,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetFowMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           var area = Mapper.map(msg.getArea());
@@ -463,14 +461,14 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetCampaignNameMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server.getCampaign().setName(msg.getName());
         });
   }
 
   private void handle(SetCampaignLandingMapMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           if (msg.hasLandingMapId()) {
             server.getCampaign().setLandingMapId(GUID.valueOf(msg.getLandingMapId()));
@@ -481,14 +479,14 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetCampaignMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server.setCampaign(Campaign.fromDto(msg.getCampaign()));
         });
   }
 
   private void handle(SendTokensToBackMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGuid = GUID.valueOf(msg.getZoneGuid());
           var tokens =
@@ -498,7 +496,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(RenameZoneMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           var name = msg.getName();
@@ -510,7 +508,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(RemoveZoneMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           var zone = server.getCampaign().getZone(zoneGUID);
@@ -525,7 +523,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(RemoveTokensMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           var tokenGUIDs =
@@ -536,7 +534,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(RemoveTokenMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           var tokenGUID = GUID.valueOf(msg.getTokenGuid());
@@ -557,7 +555,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(PutZoneMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           final var zone = Zone.fromDto(msg.getZone());
           server.getCampaign().putZone(zone);
@@ -569,7 +567,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(PutLabelMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
           zone.putLabel(Label.fromDto(msg.getLabel()));
@@ -577,14 +575,14 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(PutAssetMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           AssetManager.putAsset(Asset.fromDto(msg.getAsset()));
         });
   }
 
   private void handle(HideFowMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           var area = Mapper.map(msg.getArea());
@@ -605,22 +603,16 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(ExposePcAreaMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
-          if (MapTool.isHeadless()) {
-            // TODO(headless): FogUtil.exposePCArea needs a ZoneView, which is currently only
-            // reachable through a ZoneRenderer. See milestone 2.
-            log.warn("Ignoring ExposePcAreaMsg for zone {} in headless mode", zoneGUID);
-            return;
-          }
           ZoneRenderer renderer = MapTool.getFrame().getZoneRenderer(zoneGUID);
           FogUtil.exposePCArea(renderer);
         });
   }
 
   private void handle(ExposeFowMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(msg.getZoneGuid());
           Zone zone = server.getCampaign().getZone(zoneGUID);
@@ -632,7 +624,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(String clientId, PutTokenMsg putTokenMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(putTokenMsg.getZoneGuid());
           var token = Token.fromDto(putTokenMsg.getToken());
@@ -641,7 +633,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(String clientId, EditTokenMsg editTokenMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(editTokenMsg.getZoneGuid());
           var token = Token.fromDto(editTokenMsg.getToken());
@@ -650,7 +642,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(DrawMsg drawMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGuid = GUID.valueOf(drawMsg.getZoneGuid());
           var pen = Pen.fromDto(drawMsg.getPen());
@@ -661,7 +653,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(ClearExposedAreaMsg clearExposedAreaMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(clearExposedAreaMsg.getZoneGuid());
           var globalOnly = clearExposedAreaMsg.getGlobalOnly();
@@ -671,7 +663,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(ClearAllDrawingsMsg clearAllDrawingsMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(clearAllDrawingsMsg.getZoneGuid());
           var layer = Zone.Layer.valueOf(clearAllDrawingsMsg.getLayer());
@@ -692,7 +684,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(BringTokensToFrontMsg bringTokensToFrontMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGuid = GUID.valueOf(bringTokensToFrontMsg.getZoneGuid());
           var tokenSet =
@@ -704,7 +696,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateMaskTopologyMsg updateTopologyMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneGUID = GUID.valueOf(updateTopologyMsg.getZoneGuid());
           var area = Mapper.map(updateTopologyMsg.getArea());
@@ -731,7 +723,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(SetWallTopologyMsg setWallTopologyMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneId = new GUID(setWallTopologyMsg.getZoneGuid());
           var zone = server.getCampaign().getZone(zoneId);
@@ -746,7 +738,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(UpdateWallDataMsg updateWallDataMsg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var zoneId = new GUID(updateWallDataMsg.getZoneGuid());
           var zone = server.getCampaign().getZone(zoneId);
@@ -761,7 +753,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(PutLookupTableMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           var table = LookupTable.fromDto(msg.getTable());
           server.getCampaign().getLookupTableMap().put(table.getName(), table);
@@ -769,7 +761,7 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(DeleteLookupTableMsg msg) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           server.getCampaign().getLookupTableMap().remove(msg.getTableName());
         });

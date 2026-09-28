@@ -14,12 +14,11 @@
  */
 package net.rptools.maptool.util.threads;
 
-import java.awt.EventQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import javafx.application.Platform;
-import javax.swing.SwingUtilities;
+import net.rptools.lib.ModelThread;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -34,18 +33,21 @@ public class ThreadExecutionHelper<T> {
   private static final Logger log = LogManager.getLogger(ThreadExecutionHelper.class);
 
   /**
-   * This method ensures tht the callable argument passed to it is executed on the swing thread. If
-   * called from the swing thread it will execute immediately and return an already completed {@link
+   * This method ensures tht the callable argument passed to it is executed on the model thread. If
+   * called from the model thread it will execute immediately and return an already completed {@link
    * CompletableFuture}.
    *
-   * @param callable the task to be executed on the swing thread.
+   * <p>The model thread is the Swing event dispatch thread when a display is available, so this is
+   * unchanged for the client. See {@link ModelThread} for why the distinction exists.
+   *
+   * @param callable the task to be executed on the model thread.
    * @return A {@link CompletableFuture} for the task to be executed.
    */
   public CompletableFuture<T> runOnSwingThread(Callable<T> callable) {
-    if (SwingUtilities.isEventDispatchThread()) {
+    if (ModelThread.isModelThread()) {
       return CompletableFuture.completedFuture(doCall(callable));
     } else {
-      return CompletableFuture.supplyAsync(() -> doCall(callable), EventQueue::invokeLater);
+      return CompletableFuture.supplyAsync(() -> doCall(callable), ModelThread::invokeLater);
     }
   }
 

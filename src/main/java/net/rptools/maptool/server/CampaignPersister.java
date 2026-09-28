@@ -1,6 +1,16 @@
 /*
- * This software is copyrighted by the RPTools.net development team, and
- * is licensed under the Affero GPL version 3.0.
+ * This software Copyright by the RPTools.net development team, and
+ * licensed under the Affero GPL Version 3 or, at your option, any later
+ * version.
+ *
+ * MapTool Source Code is distributed in the hope that it will be
+ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public
+ * License * along with this source Code.  If not, please visit
+ * <http://www.gnu.org/licenses/> and specifically the Affero license
+ * text at <http://www.gnu.org/licenses/agpl.html>.
  */
 package net.rptools.maptool.server;
 
@@ -17,7 +27,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
-import net.rptools.maptool.client.EventDispatcher;
+import net.rptools.lib.ModelThread;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.util.PersistenceUtil;
 import org.apache.logging.log4j.LogManager;
@@ -27,8 +37,8 @@ import org.apache.logging.log4j.Logger;
  * Periodically writes the server's campaign to disk, and once more on shutdown.
  *
  * <p>A GUI MapTool has a GM who can hit save; a headless server has nobody, so without this a crash
- * or restart loses the whole session. Saves are written to a temp file and then moved into place, so
- * an interrupted save cannot destroy the previous good copy.
+ * or restart loses the whole session. Saves are written to a temp file and then moved into place,
+ * so an interrupted save cannot destroy the previous good copy.
  *
  * <p>The campaign model is not thread safe and is only modified on the model thread (the EDT in a
  * GUI, the dispatch thread when headless). This follows the same pattern as {@code
@@ -38,8 +48,7 @@ import org.apache.logging.log4j.Logger;
 public class CampaignPersister {
   private static final Logger log = LogManager.getLogger(CampaignPersister.class);
   private static final long COPY_TIMEOUT_SECONDS = 60;
-  private static final DateTimeFormatter STAMP =
-      DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+  private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
   private final MapToolServer server;
   private final File target;
@@ -138,7 +147,7 @@ public class CampaignPersister {
    */
   private Campaign copyOnModelThread() throws IOException {
     CompletableFuture<Campaign> copy = new CompletableFuture<>();
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           try {
             Campaign live = server.getCampaign();

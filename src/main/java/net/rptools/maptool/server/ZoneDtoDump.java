@@ -1,6 +1,16 @@
 /*
- * This software is copyrighted by the RPTools.net development team, and
- * is licensed under the Affero GPL version 3.0.
+ * This software Copyright by the RPTools.net development team, and
+ * licensed under the Affero GPL Version 3 or, at your option, any later
+ * version.
+ *
+ * MapTool Source Code is distributed in the hope that it will be
+ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public
+ * License * along with this source Code.  If not, please visit
+ * <http://www.gnu.org/licenses/> and specifically the Affero license
+ * text at <http://www.gnu.org/licenses/agpl.html>.
  */
 package net.rptools.maptool.server;
 
@@ -17,8 +27,8 @@ import net.rptools.maptool.model.Zone;
 import net.rptools.maptool.model.drawing.DrawableTexturePaint;
 import net.rptools.maptool.model.library.LibraryManager;
 import net.rptools.maptool.model.library.url.LibraryURLStreamHandler;
-import net.rptools.maptool.util.PersistenceUtil;
 import net.rptools.maptool.server.proto.ZoneDto;
+import net.rptools.maptool.util.PersistenceUtil;
 
 /**
  * Diagnostic: load a campaign headless and report, per zone, whether the background paint and map

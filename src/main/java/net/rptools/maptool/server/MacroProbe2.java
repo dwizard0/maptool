@@ -1,6 +1,16 @@
 /*
- * This software is copyrighted by the RPTools.net development team, and
- * is licensed under the Affero GPL version 3.0.
+ * This software Copyright by the RPTools.net development team, and
+ * licensed under the Affero GPL Version 3 or, at your option, any later
+ * version.
+ *
+ * MapTool Source Code is distributed in the hope that it will be
+ * useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+ * of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public
+ * License * along with this source Code.  If not, please visit
+ * <http://www.gnu.org/licenses/> and specifically the Affero license
+ * text at <http://www.gnu.org/licenses/agpl.html>.
  */
 package net.rptools.maptool.server;
 
@@ -43,7 +53,8 @@ public class MacroProbe2 {
     Thread.sleep(3000); // let the deferred library scan finish
 
     System.out.println("=== library registration ===");
-    var libs = new LibraryManager().getLibraries(net.rptools.maptool.model.library.LibraryType.TOKEN);
+    var libs =
+        new LibraryManager().getLibraries(net.rptools.maptool.model.library.LibraryType.TOKEN);
     System.out.println("registered libraries: " + libs.size());
     libs.forEach(
         l -> {
@@ -75,7 +86,9 @@ public class MacroProbe2 {
             + (context == null ? "NONE" : context.getName() + " on " + contextZone.getName()));
 
     String[] withContext = {
-      "[r: getName()]", "[r: getStrProp(getPropertyNames(), 'x')]", "[r: json.length(getPropertyNames())]"
+      "[r: getName()]",
+      "[r: getStrProp(getPropertyNames(), 'x')]",
+      "[r: json.length(getPropertyNames())]"
     };
     System.out.println();
     System.out.println("=== with token in context ===");

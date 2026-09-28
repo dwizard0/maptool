@@ -15,7 +15,7 @@
 package net.rptools.maptool.model.library.addon;
 
 import com.google.common.eventbus.Subscribe;
-import net.rptools.maptool.client.EventDispatcher;
+import net.rptools.lib.ModelThread;
 import net.rptools.maptool.client.macro.MacroManager;
 import net.rptools.maptool.model.library.AddOnsAddedEvent;
 import net.rptools.maptool.model.library.AddOnsRemovedEvent;
@@ -31,7 +31,7 @@ public class AddOnSlashCommandManager {
             .map(a -> libMan.getLibrary(a.namespace()).get())
             .filter(a -> !a.getSlashCommands().isEmpty())
             .toList();
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           for (var addOn : addOns) {
             for (var slash : addOn.getSlashCommands()) {
@@ -43,7 +43,7 @@ public class AddOnSlashCommandManager {
 
   @Subscribe
   void removedAddOn(AddOnsRemovedEvent event) {
-    EventDispatcher.invokeLater(
+    ModelThread.invokeLater(
         () -> {
           for (var addOn : event.addOns()) {
             MacroManager.removeAddOnAliases(addOn.namespace());

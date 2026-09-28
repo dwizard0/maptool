@@ -34,7 +34,7 @@ import net.rptools.clientserver.simple.server.Server;
 import net.rptools.clientserver.simple.server.ServerObserver;
 import net.rptools.clientserver.simple.server.SocketServer;
 import net.rptools.clientserver.simple.server.WebRTCServer;
-import net.rptools.maptool.client.EventDispatcher;
+import net.rptools.lib.ModelThread;
 import net.rptools.maptool.client.AppConstants;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolRegistry;
@@ -506,7 +506,7 @@ public class MapToolServer {
           // If the heartbeat worked, reset the counter if the last one failed
           if (errors != 0) {
             String msg = I18N.getText("msg.info.heartbeat.registrySuccess", errors);
-            EventDispatcher.invokeLater(
+            ModelThread.invokeLater(
                 () -> {
                   // Write to the GM's console. (Code taken from client.functions.ChatFunction)
                   MapTool.serverCommand().message(TextMessage.gm(null, msg));
@@ -535,7 +535,7 @@ public class MapToolServer {
             // We use a linear backoff so we don't inundate the user with popups!
 
             String msg = I18N.getText("msg.info.heartbeat.registryFailure", IP_addr, port, errors);
-            EventDispatcher.invokeLater(
+            ModelThread.invokeLater(
                 () -> {
                   // Write to the GM's console. (Code taken from client.functions.ChatFunction)
                   MapTool.serverCommand().message(TextMessage.gm(null, msg));
