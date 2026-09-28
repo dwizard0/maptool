@@ -1193,7 +1193,7 @@ public class Token implements Cloneable {
    */
   public void validateName(String name) throws ParserException {
     if (!MapTool.getPlayer().isGM() && !MapTool.getParser().isMacroTrusted()) {
-      Zone curZone = getZoneRenderer().getZone();
+      Zone curZone = getZone();
       List<Token> tokensList = curZone.getAllTokens();
 
       for (Token token : tokensList) {
@@ -1314,20 +1314,44 @@ public class Token implements Cloneable {
     return id;
   }
 
-  public ZoneRenderer getZoneRenderer() { // Returns the ZoneRenderer the token is on
-    ZoneRenderer zoneRenderer = MapTool.getFrame().getCurrentZoneRenderer();
-    Token token = zoneRenderer.getZone().getToken(getId());
-
-    if (token == null) {
-      List<ZoneRenderer> zrenderers = MapTool.getFrame().getZoneRenderers();
-      for (ZoneRenderer zr : zrenderers) {
-        token = zr.getZone().getToken(getId());
-        if (token != null) {
-          return zr;
-        }
+  /**
+   * Returns the zone this token belongs to.
+   *
+   * <p>This is a question about the campaign, not about what is on screen, so it is answered by
+   * searching the campaign's zones. Asking the frame instead -- for the current renderer, or by
+   * iterating the renderers -- only ever finds zones that have a renderer, and silently reports the
+   * zone being looked at rather than the zone the token is on.
+   *
+   * @return the zone containing this token, or null if no zone in the campaign does
+   */
+  public Zone getZone() {
+    Campaign campaign = MapTool.getCampaign();
+    if (campaign == null) {
+      return null;
+    }
+    for (Zone zone : campaign.getZones()) {
+      if (zone.getToken(getId()) != null) {
+        return zone;
       }
     }
-    return zoneRenderer;
+    return null;
+  }
+
+  /**
+   * Returns the renderer displaying the zone this token is on.
+   *
+   * @return the token's zone's renderer, or the current renderer if the token's zone cannot be
+   *     found or is not being displayed
+   */
+  public ZoneRenderer getZoneRenderer() {
+    Zone zone = getZone();
+    if (zone != null) {
+      ZoneRenderer renderer = MapTool.getFrame().getZoneRenderer(zone.getId());
+      if (renderer != null) {
+        return renderer;
+      }
+    }
+    return MapTool.getFrame().getCurrentZoneRenderer();
   }
 
   public void setId(GUID id) {
@@ -2527,7 +2551,7 @@ public class Token implements Cloneable {
    */
   @SuppressWarnings("unchecked")
   public List<InitiativeList.TokenInitiative> getInitiatives() {
-    Zone zone = getZoneRenderer().getZone();
+    Zone zone = getZone();
     List<Integer> list = zone.getInitiativeList().indexOf(this);
     if (list.isEmpty()) {
       return Collections.emptyList();
@@ -2545,7 +2569,7 @@ public class Token implements Cloneable {
    * @return The first token initiative value for the token
    */
   public InitiativeList.TokenInitiative getInitiative() {
-    Zone zone = getZoneRenderer().getZone();
+    Zone zone = getZone();
     List<Integer> list = zone.getInitiativeList().indexOf(this);
     if (list.isEmpty()) {
       return null;
@@ -2579,8 +2603,10 @@ public class Token implements Cloneable {
         getMacroPropertiesMap(secure).remove(nextProp.getIndex());
       }
     }
-    MapTool.serverCommand()
-        .putToken(MapTool.getFrame().getCurrentZoneRenderer().getZone().getId(), this);
+    Zone zone = getZone();
+    if (zone != null) {
+      MapTool.serverCommand().putToken(zone.getId(), this);
+    }
     MapTool.getFrame().resetTokenPanels();
   }
 
@@ -2594,8 +2620,10 @@ public class Token implements Cloneable {
       // timing problem.
     }
 
-    MapTool.serverCommand()
-        .putToken(MapTool.getFrame().getCurrentZoneRenderer().getZone().getId(), this);
+    Zone zone = getZone();
+    if (zone != null) {
+      MapTool.serverCommand().putToken(zone.getId(), this);
+    }
     MapTool.getFrame().resetTokenPanels();
   }
 
@@ -2607,8 +2635,10 @@ public class Token implements Cloneable {
         nextProp.setGroup(newMacroGroup);
       }
     }
-    MapTool.serverCommand()
-        .putToken(MapTool.getFrame().getCurrentZoneRenderer().getZone().getId(), this);
+    Zone zone = getZone();
+    if (zone != null) {
+      MapTool.serverCommand().putToken(zone.getId(), this);
+    }
     MapTool.getFrame().resetTokenPanels();
   }
 
