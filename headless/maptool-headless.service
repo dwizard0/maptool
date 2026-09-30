@@ -36,12 +36,16 @@ ExecStart=/home/freeman/maptool-headless/headless/maptool-server.sh
 # The final campaign save runs in a JVM shutdown hook. Give it room: a large
 # campaign with many assets takes longer than the default 90s grace period.
 KillSignal=SIGTERM
-# The JVM exits 128+15 on SIGTERM. Without this every clean stop is recorded as a
-# failure, and Restart=on-failure cannot tell a deliberate stop from a crash.
+# The JVM exits 128+15 on SIGTERM. Without this every clean stop is recorded as
+# a failure in the journal and in `systemctl status`.
 SuccessExitStatus=143
 TimeoutStopSec=180
 
-Restart=on-failure
+# A dedicated server should be up whenever the machine is, so restart on a clean
+# exit as well as a crash. `systemctl stop` still stops it: that is systemd
+# stopping the unit, not the process exiting on its own. This also means a new
+# build can be picked up by killing the process, with no root access needed.
+Restart=always
 RestartSec=10
 
 StandardOutput=journal
