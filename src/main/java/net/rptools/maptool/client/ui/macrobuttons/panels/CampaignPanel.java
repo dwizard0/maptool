@@ -14,18 +14,28 @@
  */
 package net.rptools.maptool.client.ui.macrobuttons.panels;
 
+import com.google.common.eventbus.Subscribe;
 import java.util.ArrayList;
 import java.util.List;
+import javax.swing.SwingUtilities;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.ui.macrobuttons.buttongroups.AbstractButtonGroup;
+import net.rptools.maptool.events.MapToolEventBus;
 import net.rptools.maptool.model.MacroButtonProperties;
+import net.rptools.maptool.model.campaign.CampaignMacrosChanged;
 
 public class CampaignPanel extends AbstractMacroPanel {
 
   public CampaignPanel() {
     setPanelClass("CampaignPanel");
     addMouseListener(this);
+    new MapToolEventBus().getMainEventBus().register(this);
     init();
+  }
+
+  @Subscribe
+  void campaignMacrosChanged(CampaignMacrosChanged event) {
+    SwingUtilities.invokeLater(this::reset);
   }
 
   private void init() {
