@@ -24,11 +24,12 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import net.rptools.lib.MD5Key;
 import net.rptools.lib.net.Location;
-import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.ui.ToolbarPanel;
-import net.rptools.maptool.client.ui.macrobuttons.panels.AbstractMacroPanel;
 import net.rptools.maptool.client.ui.token.BarTokenOverlay;
 import net.rptools.maptool.client.ui.token.BooleanTokenOverlay;
+import net.rptools.maptool.events.MapToolEventBus;
+import net.rptools.maptool.model.campaign.CampaignMacrosChanged;
+import net.rptools.maptool.model.campaign.GmMacrosChanged;
 import net.rptools.maptool.model.sheet.stats.StatSheetProperties;
 import net.rptools.maptool.server.proto.CampaignDto;
 
@@ -519,9 +520,7 @@ public class Campaign implements Serializable {
       macroButtonLastIndex = lastIndex;
     }
 
-    AbstractMacroPanel macroPanel =
-        gmPanel ? MapTool.getFrame().getGmPanel() : MapTool.getFrame().getCampaignPanel();
-    macroPanel.reset();
+    macrosChanged(gmPanel);
   }
 
   /**
@@ -533,8 +532,6 @@ public class Campaign implements Serializable {
   public void saveMacroButtonProperty(MacroButtonProperties properties, boolean gmPanel) {
     List<MacroButtonProperties> macroButtonList =
         gmPanel ? gmMacroButtonProperties : macroButtonProperties;
-    AbstractMacroPanel macroPanel =
-        gmPanel ? MapTool.getFrame().getGmPanel() : MapTool.getFrame().getCampaignPanel();
 
     for (MacroButtonProperties prop : macroButtonList) {
       if (prop.getIndex() == properties.getIndex()) {
@@ -561,12 +558,22 @@ public class Campaign implements Serializable {
         prop.setCompareSortPrefix(properties.getCompareSortPrefix());
         prop.setCompareCommand(properties.getCompareCommand());
 
-        macroPanel.reset();
+        macrosChanged(gmPanel);
         return;
       }
     }
     macroButtonList.add(properties);
-    macroPanel.reset();
+    macrosChanged(gmPanel);
+  }
+
+  /**
+   * Announce that this campaign's macro buttons have changed.
+   *
+   * @param gmPanel whether the GM macros changed rather than the campaign macros
+   */
+  private void macrosChanged(boolean gmPanel) {
+    var event = gmPanel ? new GmMacrosChanged(this) : new CampaignMacrosChanged(this);
+    new MapToolEventBus().getMainEventBus().post(event);
   }
 
   public int getMacroButtonNextIndex() {
@@ -589,12 +596,12 @@ public class Campaign implements Serializable {
 
   public void deleteMacroButton(MacroButtonProperties properties) {
     macroButtonProperties.remove(properties);
-    MapTool.getFrame().getCampaignPanel().reset();
+    macrosChanged(false);
   }
 
   public void deleteGmMacroButton(MacroButtonProperties properties) {
     gmMacroButtonProperties.remove(properties);
-    MapTool.getFrame().getGmPanel().reset();
+    macrosChanged(true);
   }
 
   /**
