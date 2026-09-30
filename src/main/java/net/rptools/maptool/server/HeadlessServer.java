@@ -9,8 +9,8 @@
  *
  * You should have received a copy of the GNU Affero General Public
  * License * along with this source Code.  If not, please visit
- * <http://www.gnu.org/licenses/> and specifically the Affero license
- * text at <http://www.gnu.org/licenses/agpl.html>.
+ * <https://www.gnu.org/licenses/> and specifically the Affero license
+ * text at <https://www.gnu.org/licenses/agpl.html>.
  */
 package net.rptools.maptool.server;
 
@@ -126,7 +126,8 @@ public class HeadlessServer {
             server,
             saveTarget,
             Integer.getInteger("maptool.autosaveMinutes", 5),
-            !"false".equals(System.getProperty("maptool.backups")));
+            !"false".equals(System.getProperty("maptool.backups")),
+            Integer.getInteger("maptool.backupsToKeep", 24));
     persister.start();
 
     Runtime.getRuntime()

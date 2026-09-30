@@ -9,8 +9,8 @@
  *
  * You should have received a copy of the GNU Affero General Public
  * License * along with this source Code.  If not, please visit
- * <http://www.gnu.org/licenses/> and specifically the Affero license
- * text at <http://www.gnu.org/licenses/agpl.html>.
+ * <https://www.gnu.org/licenses/> and specifically the Affero license
+ * text at <https://www.gnu.org/licenses/agpl.html>.
  */
 package net.rptools.maptool.server;
 
@@ -21,6 +21,9 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -48,20 +51,36 @@ import org.apache.logging.log4j.Logger;
 public class CampaignPersister {
   private static final Logger log = LogManager.getLogger(CampaignPersister.class);
   private static final long COPY_TIMEOUT_SECONDS = 60;
+  private static final int DEFAULT_BACKUPS_TO_KEEP = 24;
   private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
   private final MapToolServer server;
   private final File target;
   private final int intervalMinutes;
   private final boolean keepBackups;
+  private final int backupsToKeep;
   private ScheduledExecutorService scheduler;
 
   public CampaignPersister(
       MapToolServer server, File target, int intervalMinutes, boolean keepBackups) {
+    this(server, target, intervalMinutes, keepBackups, DEFAULT_BACKUPS_TO_KEEP);
+  }
+
+  /**
+   * @param backupsToKeep how many timestamped backups to retain; older ones are deleted after each
+   *     save. Zero or less keeps every backup, which grows without bound.
+   */
+  public CampaignPersister(
+      MapToolServer server,
+      File target,
+      int intervalMinutes,
+      boolean keepBackups,
+      int backupsToKeep) {
     this.server = server;
     this.target = target;
     this.intervalMinutes = intervalMinutes;
     this.keepBackups = keepBackups;
+    this.backupsToKeep = backupsToKeep;
   }
 
   /** Begin periodic saves. No-op if the interval is zero or negative. */
@@ -121,6 +140,7 @@ public class CampaignPersister {
             new File(
                 dir.toFile(), target.getName() + "." + LocalDateTime.now().format(STAMP) + ".bak");
         Files.copy(target.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
+        pruneBackups(dir.toFile());
       }
 
       Files.move(
@@ -169,5 +189,39 @@ public class CampaignPersister {
     } catch (TimeoutException e) {
       throw new IOException("Timed out waiting for the model thread to copy the campaign", e);
     }
+  }
+
+  /**
+   * Delete the oldest backups beyond the retention limit.
+   *
+   * <p>A server saves on a timer and nobody is watching it, so without this the backups accumulate
+   * for as long as the server runs -- one full copy of the campaign every interval, forever.
+   *
+   * @param dir the directory holding the backups
+   */
+  private void pruneBackups(File dir) {
+    if (backupsToKeep <= 0) {
+      return;
+    }
+    File[] found =
+        dir.listFiles(
+            (d, name) -> name.startsWith(target.getName() + ".") && name.endsWith(".bak"));
+    if (found == null || found.length <= backupsToKeep) {
+      return;
+    }
+    List<File> backups = new ArrayList<>(List.of(found));
+    // The names carry a sortable timestamp, so this orders oldest first without touching the
+    // filesystem's modification times, which a copy or a restore can rewrite.
+    backups.sort(Comparator.comparing(File::getName));
+    int toDelete = backups.size() - backupsToKeep;
+    for (int i = 0; i < toDelete; i++) {
+      File old = backups.get(i);
+      if (old.delete()) {
+        log.debug("Removed old campaign backup {}", old.getName());
+      } else {
+        log.warn("Could not remove old campaign backup {}", old);
+      }
+    }
+    log.info("Pruned {} old campaign backup(s), keeping {}", toDelete, backupsToKeep);
   }
 }
