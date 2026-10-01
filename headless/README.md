@@ -138,6 +138,23 @@ if it loops.
 - `getTokenInitiative: index = -1` lines at ERROR level during startup are
   upstream noise: that is how its own code asks "is there a current token?".
 
+## Add-on libraries
+
+The server holds the campaign's add-on libraries: it hands them to each
+connecting client during the handshake and writes them into every save, so a
+framework imported once by the GM survives reconnects and restarts and reaches
+players without them importing anything.
+
+Upstream assumes the GM hosts the game in their own client, so a GM connected
+to a dedicated server published nothing and the server's library list stayed
+empty. Both halves of that are fixed on this branch; a self-hosted GUI game is
+unaffected.
+
+The server does **not** run an add-on's lifecycle events (first-time setup and
+init). Those are client work -- they call things like `broadcast()` that need a
+chat panel. The "needs initialization" flag is left alone, so the first real
+client still runs first-time setup.
+
 ## Known limitations
 
 - **Macros run on clients, not here.** The server stores macro definitions and
