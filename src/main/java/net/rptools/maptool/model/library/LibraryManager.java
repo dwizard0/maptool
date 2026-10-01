@@ -160,6 +160,25 @@ public class LibraryManager {
   }
 
   /**
+   * Whether this client is responsible for telling the server about add-on library changes.
+   *
+   * <p>Historically this was {@code MapTool.isHostingServer()}, which assumes the GM hosts the game
+   * in their own client. A GM connected to a dedicated server does not host anything, so add-ons
+   * they imported stayed in their own client: the server never learned about them, could not hand
+   * them to other players, and saved campaigns without them.
+   *
+   * <p>A player is never responsible, and a personal server has nobody to tell.
+   *
+   * @return true if add-on changes made here should be sent to the server
+   */
+  private static boolean publishesAddOnChanges() {
+    if (MapTool.isHostingServer()) {
+      return true;
+    }
+    return !MapTool.isPersonalServer() && MapTool.getPlayer() != null && MapTool.getPlayer().isGM();
+  }
+
+  /**
    * Register and add-on library.
    *
    * @param addOn the Add On to register.
@@ -167,7 +186,7 @@ public class LibraryManager {
   public boolean registerAddOnLibrary(AddOnLibrary addOn) {
     try {
       addOnLibraryManager.registerLibrary(addOn);
-      if (MapTool.isHostingServer()) {
+      if (publishesAddOnChanges()) {
         MapTool.serverCommand().addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOn)));
       }
     } catch (ExecutionException | InterruptedException | IllegalStateException e) {
@@ -184,7 +203,7 @@ public class LibraryManager {
    */
   public void deregisterAddOnLibrary(String namespace) {
     addOnLibraryManager.deregisterLibrary(namespace);
-    if (MapTool.isHostingServer()) {
+    if (publishesAddOnChanges()) {
       MapTool.serverCommand().removeAddOnLibrary(List.of(namespace));
     }
   }
@@ -198,7 +217,7 @@ public class LibraryManager {
     try {
       addOnLibraryManager.deregisterLibrary(addOnLibrary.getNamespace().get());
       addOnLibraryManager.registerLibrary(addOnLibrary);
-      if (MapTool.isHostingServer()) {
+      if (publishesAddOnChanges()) {
         MapTool.serverCommand()
             .addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOnLibrary)));
       }
@@ -313,7 +332,7 @@ public class LibraryManager {
   /** de-registers all the add-on in libraries. */
   public void deregisterAddOnLibraries() {
     addOnLibraryManager.removeAllLibraries();
-    if (MapTool.isHostingServer()) {
+    if (publishesAddOnChanges()) {
       MapTool.serverCommand().removeAllAddOnLibraries();
     }
   }

@@ -17,6 +17,7 @@ package net.rptools.maptool.server;
 import static net.rptools.maptool.server.proto.Message.MessageTypeCase.HEARTBEAT_MSG;
 
 import java.awt.geom.Area;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -32,11 +33,15 @@ import net.rptools.maptool.client.ui.zone.renderer.ZoneRenderer;
 import net.rptools.maptool.common.MapToolConstants;
 import net.rptools.maptool.events.MapToolEventBus;
 import net.rptools.maptool.model.*;
+import net.rptools.maptool.model.AssetManager;
 import net.rptools.maptool.model.InitiativeList.TokenInitiative;
 import net.rptools.maptool.model.Zone.VisionType;
 import net.rptools.maptool.model.drawing.Drawable;
 import net.rptools.maptool.model.drawing.DrawnElement;
 import net.rptools.maptool.model.drawing.Pen;
+import net.rptools.maptool.model.library.LibraryManager;
+import net.rptools.maptool.model.library.addon.AddOnLibraryImporter;
+import net.rptools.maptool.model.library.addon.TransferableAddOnLibrary;
 import net.rptools.maptool.model.topology.Wall;
 import net.rptools.maptool.model.topology.WallTopology;
 import net.rptools.maptool.model.zones.TokensAdded;
@@ -44,6 +49,8 @@ import net.rptools.maptool.model.zones.TokensRemoved;
 import net.rptools.maptool.model.zones.ZoneAdded;
 import net.rptools.maptool.model.zones.ZoneRemoved;
 import net.rptools.maptool.server.proto.*;
+import net.rptools.maptool.server.proto.AddAddOnLibraryMsg;
+import net.rptools.maptool.server.proto.RemoveAddOnLibraryMsg;
 import net.rptools.maptool.transfer.AssetProducer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -120,9 +127,6 @@ public class ServerMessageHandler implements MessageHandler {
                 STOP_TOKEN_MOVE_MSG,
                 TOGGLE_TOKEN_MOVE_WAYPOINT_MSG,
                 UPDATE_TOKEN_MOVE_MSG,
-                ADD_ADD_ON_LIBRARY_MSG,
-                REMOVE_ADD_ON_LIBRARY_MSG,
-                REMOVE_ALL_ADD_ON_LIBRARIES_MSG,
                 UPDATE_DATA_STORE_MSG,
                 UPDATE_DATA_NAMESPACE_MSG,
                 UPDATE_DATA_MSG,
@@ -130,6 +134,18 @@ public class ServerMessageHandler implements MessageHandler {
                 REMOVE_DATA_NAMESPACE_MSG,
                 REMOVE_DATA_STORE_MSG ->
             sendToClients(id, msg);
+        case ADD_ADD_ON_LIBRARY_MSG -> {
+          handle(msg.getAddAddOnLibraryMsg());
+          sendToClients(id, msg);
+        }
+        case REMOVE_ADD_ON_LIBRARY_MSG -> {
+          handle(msg.getRemoveAddOnLibraryMsg());
+          sendToClients(id, msg);
+        }
+        case REMOVE_ALL_ADD_ON_LIBRARIES_MSG -> {
+          new LibraryManager().deregisterAddOnLibraries();
+          sendToClients(id, msg);
+        }
         case EXPOSE_FOW_MSG -> {
           handle(msg.getExposeFowMsg());
           sendToClients(id, msg);
@@ -885,5 +901,47 @@ public class ServerMessageHandler implements MessageHandler {
       sendToAllClients(Message.newBuilder().setPutTokenMsg(putTokenMsg).build());
     }
     zone.sortZOrder(); // update new ZOrder on server zone
+  }
+
+  /**
+   * Register an add-on library with the server's own library manager.
+   *
+   * <p>The server relays this message to the other clients, but it also needs the library itself:
+   * it sends its add-on list to every connecting client during the handshake, and {@code
+   * PersistenceUtil.saveCampaign} writes add-ons from the same manager. A GUI host is a client in
+   * the same JVM, so its own copy covers both; a dedicated server has no client, and without this
+   * its add-on list is permanently empty -- new clients receive no libraries and every save loses
+   * them.
+   *
+   * @param msg the message announcing the added libraries
+   */
+  private void handle(AddAddOnLibraryMsg msg) {
+    for (var lib : msg.getAddOnsList().stream().map(TransferableAddOnLibrary::fromDto).toList()) {
+      AssetManager.getAssetAsynchronously(
+          lib.getAssetKey(),
+          key -> {
+            try {
+              var addOnLibrary =
+                  new AddOnLibraryImporter().importFromAsset(AssetManager.getAsset(key));
+              new LibraryManager().reregisterAddOnLibrary(addOnLibrary);
+              log.info("Registered add-on library {}", lib.getNamespace());
+            } catch (IOException e) {
+              log.error("Could not register add-on library {}", lib.getNamespace(), e);
+            }
+          });
+    }
+  }
+
+  /**
+   * Remove add-on libraries from the server's own library manager.
+   *
+   * @param msg the message naming the namespaces to remove
+   */
+  private void handle(RemoveAddOnLibraryMsg msg) {
+    var libraryManager = new LibraryManager();
+    for (String namespace : msg.getNamespacesList()) {
+      libraryManager.deregisterAddOnLibrary(namespace);
+      log.info("Removed add-on library {}", namespace);
+    }
   }
 }
