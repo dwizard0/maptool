@@ -109,13 +109,20 @@ public class HeadlessServer {
         new ServerConfig("gm", gmPassword, playerPassword, port, serverName, null, false, false);
     DefaultPlayerDatabase playerDb = new DefaultPlayerDatabase(playerPassword, gmPassword);
 
+    // The copy below reaches back through MapTool.getCampaign() while it runs: a Zone's
+    // InitiativeList holds its zone in a transient field, so after loading from disk it resolves
+    // the zone by id against the *client's* campaign. Point the client at the loaded campaign
+    // first, or copying a campaign whose maps have initiative entries dies with a
+    // NullPointerException from InitiativeList.getZone().
+    MapTool.getClient().setCampaign(campaign);
+
     MapToolServer server =
         new MapToolServer(null, new Campaign(campaign), config, false, policy, playerDb);
 
     // Model code resolves tokens and libraries through MapTool.getCampaign(), which reads the
-    // static client, not the server. Without this, LibraryToken.findLibrary() and any macro
-    // touching a lib:token search the empty personal-server campaign instead. Point the client
-    // at the server's own instance so both see the same state.
+    // static client, not the server. The server took a copy above, so re-point the client at that
+    // copy: otherwise LibraryToken.findLibrary() and any macro touching a lib:token would look at
+    // the pre-copy campaign and see tokens the server does not have.
     MapTool.getClient().setCampaign(server.getCampaign());
 
     // Deferred until the campaign is in place: LibraryTokenManager.init() scans
