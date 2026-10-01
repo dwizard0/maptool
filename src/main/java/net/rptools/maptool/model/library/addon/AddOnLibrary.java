@@ -612,6 +612,18 @@ public class AddOnLibrary implements Library {
                                   }
                                   // Then create a new JavaScript context for the add-on library
                                   JSScriptEngine.registerAddOnContext(jsContextName);
+                                  if (MapTool.isHeadless()) {
+                                    // A dedicated server holds the add-on so it can hand it to
+                                    // clients and save it with the campaign, but it is not a
+                                    // participant: its lifecycle events would run macros that
+                                    // expect a chat panel and a player. The needs-initialization
+                                    // flag is deliberately left alone so that the first real
+                                    // client still runs first-time setup.
+                                    logger.info(
+                                        "Headless: not running add-on lifecycle events for {}",
+                                        namespace);
+                                    return;
+                                  }
                                   if (needInit) {
                                     if (jsEventNameMap.containsKey(FIRST_INIT_EVENT)) {
                                       runJS(jsEventNameMap.get(FIRST_INIT_EVENT));
