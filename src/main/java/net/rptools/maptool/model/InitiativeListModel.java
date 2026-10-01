@@ -52,8 +52,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
    */
   public TokenInitiative getCurrentTokenInitiative() {
     if (list.getCurrent() < 0) return null;
-    if (MapTool.getFrame().getInitiativePanel().hasGMPermission())
-      return list.getTokenInitiative(list.getCurrent());
+    if (MapTool.hasGMPermission()) return list.getTokenInitiative(list.getCurrent());
     TokenInitiative visible = null;
     for (int i = 0; i <= list.getCurrent(); i++) {
       TokenInitiative ti = list.getTokenInitiative(i);
@@ -70,7 +69,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
    * @return The index in the display model or -1 if the item is not displayed.
    */
   public int getDisplayIndex(int index) {
-    if (index < 0 || MapTool.getFrame().getInitiativePanel().hasGMPermission()) return index;
+    if (index < 0 || MapTool.hasGMPermission()) return index;
     if (!isTokenVisible(list.getToken(index), list.isHideNPC())) return -1;
     int found = -1;
     for (int i = 0; i <= index; i++)
@@ -130,7 +129,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
    */
   public static boolean isTokenVisible(Token token, boolean hideNPC) {
     if (token == null) return false;
-    if (MapTool.getFrame().getInitiativePanel().hasGMPermission()) return true;
+    if (MapTool.hasGMPermission()) return true;
     if (!token.isVisible() || !token.getLayer().isVisibleToPlayers()) return false;
     if (token.isVisibleOnlyToOwner() && !AppUtil.playerOwns(token)) return false;
     if (hideNPC && token.getType() == Type.NPC) return false;
@@ -223,7 +222,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
   private int getSize(List<TokenInitiative> tokens, boolean hideNPC) {
     if (tokens == null || tokens.isEmpty()) return 0;
     int size = 0;
-    if (MapTool.getFrame().getInitiativePanel().hasGMPermission()) {
+    if (MapTool.hasGMPermission()) {
       size = tokens.size();
     } else {
       for (TokenInitiative ti : tokens) if (isTokenVisible(ti.getToken(), hideNPC)) size += 1;
@@ -242,8 +241,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
    */
   @Override
   public TokenInitiative getElementAt(int index) {
-    if (MapTool.getFrame().getInitiativePanel().hasGMPermission())
-      return list.getTokenInitiative(index);
+    if (MapTool.hasGMPermission()) return list.getTokenInitiative(index);
     int found = index;
     for (int i = 0; i < list.getSize(); i++) {
       TokenInitiative ti = list.getTokenInitiative(i);
@@ -266,8 +264,7 @@ public class InitiativeListModel extends AbstractListModel<TokenInitiative>
       return 0;
     }
 
-    if (MapTool.getFrame() == null || MapTool.getFrame().getInitiativePanel().hasGMPermission())
-      return list.getSize();
+    if (MapTool.hasGMPermission()) return list.getSize();
     int size = 0;
     for (int i = 0; i < list.getSize(); i++) {
       TokenInitiative ti = list.getTokenInitiative(i);
