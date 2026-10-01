@@ -16,13 +16,19 @@ package net.rptools.maptool.server;
 
 import java.io.File;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Locale;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import javax.imageio.ImageIO;
 import net.rptools.lib.net.RPTURLStreamHandlerFactory;
 import net.rptools.maptool.client.AppSetup;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.AssetURLStreamHandler;
 import net.rptools.maptool.client.MapTool;
+import net.rptools.maptool.client.walker.WalkerMetric;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.CampaignFactory;
 import net.rptools.maptool.model.library.LibraryManager;
@@ -47,6 +53,7 @@ import org.apache.logging.log4j.Logger;
  * </ul>
  */
 public class HeadlessServer {
+  private static final String POLICY_PREFIX = "maptool.policy.";
 
   public static void main(String[] args) throws Exception {
     System.setProperty("java.awt.headless", "true");
@@ -97,7 +104,7 @@ public class HeadlessServer {
       log.info("Loaded campaign from {}", campaignPath);
     }
 
-    ServerPolicy policy = new ServerPolicy();
+    ServerPolicy policy = buildPolicy();
     ServerConfig config =
         new ServerConfig("gm", gmPassword, playerPassword, port, serverName, null, false, false);
     DefaultPlayerDatabase playerDb = new DefaultPlayerDatabase(playerPassword, gmPassword);
@@ -148,4 +155,87 @@ public class HeadlessServer {
   }
 
   private HeadlessServer() {}
+
+  /**
+   * Build the server policy from system properties.
+   *
+   * <p>A GUI server is configured through the start-server dialog, which a dedicated server does
+   * not have, so every policy flag was left at its default and could never be changed. Each setting
+   * is read from {@code -Dmaptool.policy.<name>}, and anything not given keeps the default that the
+   * dialog would have offered.
+   *
+   * @return the policy to run with
+   */
+  private static ServerPolicy buildPolicy() {
+    // The logger is created here rather than held in a static field: AppUtil.initLogging() must run
+    // before the first Logger exists, or log4j2.xml cannot resolve ${sys:MAPTOOL_LOGDIR}.
+    Logger log = LogManager.getLogger(HeadlessServer.class);
+    ServerPolicy policy = new ServerPolicy();
+    Set<String> known = new TreeSet<>();
+
+    policyFlag(log, known, "useStrictTokenManagement", policy::setUseStrictTokenManagement);
+    policyFlag(log, known, "movementLocked", policy::setIsMovementLocked);
+    policyFlag(log, known, "tokenEditorLocked", policy::setIsTokenEditorLocked);
+    policyFlag(log, known, "tokenContextLocked", policy::setIsTokenContextLocked);
+    policyFlag(log, known, "playersCanRevealVision", policy::setPlayersCanRevealVision);
+    policyFlag(
+        log, known, "gmRevealsVisionForUnownedTokens", policy::setGmRevealsVisionForUnownedTokens);
+    policyFlag(log, known, "autoRevealOnMovement", policy::setAutoRevealOnMovement);
+    policyFlag(log, known, "useIndividualViews", policy::setUseIndividualViews);
+    policyFlag(log, known, "restrictedImpersonation", policy::setRestrictedImpersonation);
+    policyFlag(log, known, "playersReceiveCampaignMacros", policy::setPlayersReceiveCampaignMacros);
+    policyFlag(log, known, "hiddenMapSelectUI", policy::setHiddenMapSelectUI);
+    policyFlag(
+        log, known, "useToolTipsForDefaultRollFormat", policy::setUseToolTipsForDefaultRollFormat);
+    policyFlag(log, known, "useIndividualFOW", policy::setUseIndividualFOW);
+    policyFlag(log, known, "includeOwnedNPCs", policy::setIncludeOwnedNPCs);
+    policyFlag(log, known, "usingAstarPathfinding", policy::setUsingAstarPathfinding);
+    policyFlag(log, known, "vblBlocksMove", policy::setVblBlocksMove);
+    policyFlag(log, known, "disablePlayerAssetPanel", policy::setDisablePlayerAssetPanel);
+
+    known.add("movementMetric");
+    String metric = System.getProperty("maptool.policy.movementMetric");
+    if (metric != null) {
+      try {
+        policy.setMovementMetric(WalkerMetric.valueOf(metric.trim().toUpperCase(Locale.ROOT)));
+        log.info("Policy movementMetric = {}", metric.trim().toUpperCase(Locale.ROOT));
+      } catch (IllegalArgumentException e) {
+        log.error(
+            "Ignoring -Dmaptool.policy.movementMetric={}; expected one of {}",
+            metric,
+            Arrays.stream(WalkerMetric.values()).map(Enum::name).toList());
+      }
+    }
+
+    // An operator who mistypes a setting should hear about it rather than wonder why it had no
+    // effect.
+    for (String name : System.getProperties().stringPropertyNames()) {
+      if (name.startsWith(POLICY_PREFIX)
+          && !known.contains(name.substring(POLICY_PREFIX.length()))) {
+        log.warn("Unknown policy setting {}; known settings are {}", name, known);
+      }
+    }
+
+    return policy;
+  }
+
+  /**
+   * Apply one boolean policy property, if it was given.
+   *
+   * @param log where to record what was applied
+   * @param known collects every setting name this server understands
+   * @param name the part after {@code maptool.policy.}
+   * @param setter the policy setter to call
+   */
+  private static void policyFlag(
+      Logger log, Set<String> known, String name, Consumer<Boolean> setter) {
+    known.add(name);
+    String value = System.getProperty(POLICY_PREFIX + name);
+    if (value == null) {
+      return;
+    }
+    boolean flag = Boolean.parseBoolean(value.trim());
+    setter.accept(flag);
+    log.info("Policy {} = {}", name, flag);
+  }
 }

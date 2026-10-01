@@ -57,6 +57,17 @@ PROPS=(
 )
 
 [[ -n "$CAMPAIGN" ]] && PROPS+=("-Dmaptool.campaign=$CAMPAIGN")
+
+# Server policy. A GUI server gets these from the start-server dialog; set them
+# here instead. Anything left unset keeps MapTool's own default.
+#   MAPTOOL_POLICY_playersReceiveCampaignMacros=true
+#   MAPTOOL_POLICY_useIndividualFOW=true
+#   MAPTOOL_POLICY_movementMetric=ONE_TWO_ONE
+while IFS='=' read -r name value; do
+  [[ -z "$name" ]] && continue
+  PROPS+=("-Dmaptool.policy.${name#MAPTOOL_POLICY_}=$value")
+done < <(env | grep '^MAPTOOL_POLICY_' | sort)
+
 [[ -n "$SAVE" ]] && PROPS+=("-Dmaptool.save=$SAVE")
 
 # A 1.18.6 client cannot connect to a develop build without this: ServerHandshake
