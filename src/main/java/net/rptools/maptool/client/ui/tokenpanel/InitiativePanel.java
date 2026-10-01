@@ -455,7 +455,7 @@ public class InitiativePanel extends JPanel
    * @return The value <code>true</code> if this player has permission for all actions.
    */
   public boolean hasGMPermission() {
-    return (MapTool.getPlayer() == null || MapTool.getPlayer().isGM());
+    return MapTool.hasGMPermission();
   }
 
   /**

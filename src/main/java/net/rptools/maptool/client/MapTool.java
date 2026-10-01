@@ -1224,6 +1224,21 @@ public class MapTool {
     return client.getPlayer();
   }
 
+  /**
+   * See if the current player has permission to execute GM restricted actions. This is <b>not</b>
+   * related to so-called <i>trusted macros</i> in MTscript.
+   *
+   * <p>This is a question about the player, not about the UI. {@link
+   * net.rptools.maptool.client.ui.tokenpanel.InitiativePanel#hasGMPermission()} answers it the same
+   * way and remains for UI callers, but model code should not have to reach through a window to
+   * ask.
+   *
+   * @return The value <code>true</code> if this player has permission for all actions.
+   */
+  public static boolean hasGMPermission() {
+    return getPlayer() == null || getPlayer().isGM();
+  }
+
   public static void startPersonalServer(Campaign campaign)
       throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
     var player = new LocalPlayer();
