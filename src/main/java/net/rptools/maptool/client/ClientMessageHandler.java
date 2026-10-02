@@ -478,14 +478,14 @@ public class ClientMessageHandler implements MessageHandler {
   }
 
   private void handle(RemoveAllAddOnLibrariesMsg msg) {
-    new LibraryManager().deregisterAddOnLibraries();
+    new LibraryManager().deregisterAddOnLibrariesLocally();
   }
 
   private void handle(RemoveAddOnLibraryMsg msg) {
     var remLibraryManager = new LibraryManager();
     var removedNamespaces = msg.getNamespacesList();
     for (String namespace : removedNamespaces) {
-      remLibraryManager.deregisterAddOnLibrary(namespace);
+      remLibraryManager.deregisterAddOnLibraryLocally(namespace);
     }
   }
 

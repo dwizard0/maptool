@@ -191,7 +191,7 @@ public class ServerMessageHandler implements MessageHandler {
           sendToClients(id, msg);
         }
         case REMOVE_ALL_ADD_ON_LIBRARIES_MSG -> {
-          new LibraryManager().deregisterAddOnLibraries();
+          new LibraryManager().deregisterAddOnLibrariesLocally();
           sendToClients(id, msg);
         }
         case EXPOSE_FOW_MSG -> {
@@ -988,7 +988,7 @@ public class ServerMessageHandler implements MessageHandler {
   private void handle(RemoveAddOnLibraryMsg msg) {
     var libraryManager = new LibraryManager();
     for (String namespace : msg.getNamespacesList()) {
-      libraryManager.deregisterAddOnLibrary(namespace);
+      libraryManager.deregisterAddOnLibraryLocally(namespace);
       log.info("Removed add-on library {}", namespace);
     }
   }

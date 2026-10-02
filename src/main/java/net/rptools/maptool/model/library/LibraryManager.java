@@ -202,10 +202,20 @@ public class LibraryManager {
    * @param namespace the namespace to deregister.
    */
   public void deregisterAddOnLibrary(String namespace) {
-    addOnLibraryManager.deregisterLibrary(namespace);
+    deregisterAddOnLibraryLocally(namespace);
     if (publishesAddOnChanges()) {
       MapTool.serverCommand().removeAddOnLibrary(List.of(namespace));
     }
+  }
+
+  /**
+   * De-registers one add-on library here only, without telling the server.
+   *
+   * @param namespace the namespace to deregister.
+   * @see #deregisterAddOnLibrariesLocally()
+   */
+  public void deregisterAddOnLibraryLocally(String namespace) {
+    addOnLibraryManager.deregisterLibrary(namespace);
   }
 
   /**
@@ -323,15 +333,34 @@ public class LibraryManager {
     return addOnLibraryManager.toDto();
   }
 
-  /** de-registers all libraries from the library manager. */
+  /**
+   * De-registers all libraries from the library manager, without telling the server.
+   *
+   * <p>This is local housekeeping rather than a change to the game: it runs when a client is
+   * tearing down the campaign it holds, which happens while joining a server and again while
+   * disconnecting from one. Publishing it would ask the server to throw away the libraries the
+   * campaign owns, which on disconnect nothing would put back. Deliberate removals go through
+   * {@link #deregisterAddOnLibraries()} or {@link #deregisterAddOnLibrary(String)} instead.
+   */
   public void deregisterAllLibraries() {
-    deregisterAddOnLibraries();
+    deregisterAddOnLibrariesLocally();
     libraryTokenManager.clearLibraries();
   }
 
-  /** de-registers all the add-on in libraries. */
-  public void deregisterAddOnLibraries() {
+  /**
+   * De-registers all the add-on libraries here only, without telling the server.
+   *
+   * <p>Use this when applying a change the server has already made, or when discarding a campaign
+   * this client is no longer using. {@link #deregisterAddOnLibraries()} is the one to use when the
+   * removal is something this client is asking for.
+   */
+  public void deregisterAddOnLibrariesLocally() {
     addOnLibraryManager.removeAllLibraries();
+  }
+
+  /** de-registers all the add-on in libraries, and tells the server. */
+  public void deregisterAddOnLibraries() {
+    deregisterAddOnLibrariesLocally();
     if (publishesAddOnChanges()) {
       MapTool.serverCommand().removeAllAddOnLibraries();
     }
