@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import net.rptools.clientserver.simple.MessageHandler;
 import net.rptools.lib.MD5Key;
@@ -39,6 +42,8 @@ import net.rptools.maptool.model.Zone.VisionType;
 import net.rptools.maptool.model.drawing.Drawable;
 import net.rptools.maptool.model.drawing.DrawnElement;
 import net.rptools.maptool.model.drawing.Pen;
+import net.rptools.maptool.model.gamedata.DataStoreManager;
+import net.rptools.maptool.model.gamedata.GameDataImporter;
 import net.rptools.maptool.model.library.LibraryManager;
 import net.rptools.maptool.model.library.addon.AddOnLibraryImporter;
 import net.rptools.maptool.model.library.addon.TransferableAddOnLibrary;
@@ -67,6 +72,22 @@ import org.apache.logging.log4j.Logger;
 public class ServerMessageHandler implements MessageHandler {
   private final MapToolServer server;
   private static final Logger log = LogManager.getLogger(ServerMessageHandler.class);
+
+  /**
+   * Applies game data updates to the server's own data store, off the message handling thread.
+   *
+   * <p>Importing an asset-valued property waits for the asset to be available, which can take an
+   * arbitrary amount of time, or never complete if the asset was never sent. Doing that work here
+   * rather than inline keeps a single bad value from stalling the server. A single thread is used
+   * so that updates are still applied in the order they arrived.
+   */
+  private final ExecutorService dataStoreExecutor =
+      Executors.newSingleThreadExecutor(
+          runnable -> {
+            var thread = new Thread(runnable, "server-game-data");
+            thread.setDaemon(true);
+            return thread;
+          });
 
   public ServerMessageHandler(MapToolServer server) {
     this.server = server;
@@ -126,14 +147,38 @@ public class ServerMessageHandler implements MessageHandler {
                 START_TOKEN_MOVE_MSG,
                 STOP_TOKEN_MOVE_MSG,
                 TOGGLE_TOKEN_MOVE_WAYPOINT_MSG,
-                UPDATE_TOKEN_MOVE_MSG,
-                UPDATE_DATA_STORE_MSG,
-                UPDATE_DATA_NAMESPACE_MSG,
-                UPDATE_DATA_MSG,
-                REMOVE_DATA_MSG,
-                REMOVE_DATA_NAMESPACE_MSG,
-                REMOVE_DATA_STORE_MSG ->
+                UPDATE_TOKEN_MOVE_MSG ->
             sendToClients(id, msg);
+        case UPDATE_DATA_STORE_MSG -> {
+          var dataMsg = msg.getUpdateDataStoreMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
+        case UPDATE_DATA_NAMESPACE_MSG -> {
+          var dataMsg = msg.getUpdateDataNamespaceMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
+        case UPDATE_DATA_MSG -> {
+          var dataMsg = msg.getUpdateDataMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
+        case REMOVE_DATA_MSG -> {
+          var dataMsg = msg.getRemoveDataMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
+        case REMOVE_DATA_NAMESPACE_MSG -> {
+          var dataMsg = msg.getRemoveDataNamespaceMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
+        case REMOVE_DATA_STORE_MSG -> {
+          var dataMsg = msg.getRemoveDataStoreMsg();
+          dataStoreExecutor.execute(() -> handle(dataMsg));
+          sendToClients(id, msg);
+        }
         case ADD_ADD_ON_LIBRARY_MSG -> {
           handle(msg.getAddAddOnLibraryMsg());
           sendToClients(id, msg);
@@ -943,5 +988,118 @@ public class ServerMessageHandler implements MessageHandler {
       libraryManager.deregisterAddOnLibrary(namespace);
       log.info("Removed add-on library {}", namespace);
     }
+  }
+
+  /**
+   * Apply a game data update to the server's own data store.
+   *
+   * <p>The data store lives in a process-wide {@link DataStoreManager} rather than in the campaign,
+   * so when the server is not also a client it must apply these updates itself. Without this the
+   * server's store stays empty, which means saved campaigns lose all game data and clients that
+   * join later receive an empty store in their handshake. {@link
+   * DataStoreManager#getDefaultDataStoreForRemoteUpdate()} is used deliberately: it does not
+   * re-broadcast, because this handler relays the original message itself.
+   *
+   * @param msg the message carrying the whole store
+   */
+  private void handle(UpdateDataStoreMsg msg) {
+    try {
+      var dataStore = new DataStoreManager().getDefaultDataStoreForRemoteUpdate();
+      new GameDataImporter(dataStore).importData(msg.getStore());
+    } catch (ExecutionException | InterruptedException e) {
+      log.error("Could not apply game data store update to the server's data store", e);
+    }
+  }
+
+  /**
+   * Apply a game data namespace update to the server's own data store.
+   *
+   * @param msg the message carrying the namespace
+   * @see #handle(UpdateDataStoreMsg)
+   */
+  private void handle(UpdateDataNamespaceMsg msg) {
+    try {
+      var dataStore = new DataStoreManager().getDefaultDataStoreForRemoteUpdate();
+      new GameDataImporter(dataStore).importData(msg.getData());
+    } catch (ExecutionException | InterruptedException e) {
+      log.error("Could not apply game data namespace update to the server's data store", e);
+    }
+  }
+
+  /**
+   * Apply a single game data value update to the server's own data store.
+   *
+   * @param msg the message carrying the value
+   * @see #handle(UpdateDataStoreMsg)
+   */
+  private void handle(UpdateDataMsg msg) {
+    try {
+      var dataStore = new DataStoreManager().getDefaultDataStoreForRemoteUpdate();
+      // Setting a property requires the namespace to exist. A client creates its namespaces as a
+      // side effect of initializing its add-on libraries, which a server without a display does
+      // not do, so the namespace is created here if it is missing. Creating one that already
+      // exists is a no-op.
+      dataStore.createNamespace(msg.getType(), msg.getNamespace()).get();
+      new GameDataImporter(dataStore).importData(msg.getType(), msg.getNamespace(), msg.getValue());
+    } catch (ExecutionException | InterruptedException e) {
+      log.error(
+          "Could not apply game data update {}:{} to the server's data store",
+          msg.getType(),
+          msg.getNamespace(),
+          e);
+    }
+  }
+
+  /**
+   * Remove a single game data value from the server's own data store.
+   *
+   * @param msg the message naming the value to remove
+   * @see #handle(UpdateDataStoreMsg)
+   */
+  private void handle(RemoveDataMsg msg) {
+    try {
+      new DataStoreManager()
+          .getDefaultDataStoreForRemoteUpdate()
+          .removeProperty(msg.getType(), msg.getNamespace(), msg.getName())
+          .get();
+    } catch (InterruptedException | ExecutionException e) {
+      log.error(
+          "Could not remove game data {}:{}:{} from the server's data store",
+          msg.getType(),
+          msg.getNamespace(),
+          msg.getName(),
+          e);
+    }
+  }
+
+  /**
+   * Clear a game data namespace in the server's own data store.
+   *
+   * @param msg the message naming the namespace to clear
+   * @see #handle(UpdateDataStoreMsg)
+   */
+  private void handle(RemoveDataNamespaceMsg msg) {
+    try {
+      new DataStoreManager()
+          .getDefaultDataStoreForRemoteUpdate()
+          .clearNamespace(msg.getType(), msg.getNamespace())
+          .get();
+    } catch (InterruptedException | ExecutionException e) {
+      log.error(
+          "Could not clear game data namespace {}:{} in the server's data store",
+          msg.getType(),
+          msg.getNamespace(),
+          e);
+    }
+  }
+
+  /**
+   * Clear the server's own game data store.
+   *
+   * @param msg the message, which carries no fields
+   * @see #handle(UpdateDataStoreMsg)
+   */
+  private void handle(RemoveDataStoreMsg msg) {
+    new DataStoreManager().getDefaultDataStoreForRemoteUpdate().clear();
   }
 }

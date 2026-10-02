@@ -26,6 +26,7 @@ import net.rptools.lib.MD5Key;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.language.I18N;
 import net.rptools.maptool.model.Asset;
+import net.rptools.maptool.model.AssetManager;
 import net.rptools.maptool.model.gamedata.data.DataType;
 import net.rptools.maptool.model.gamedata.data.DataValue;
 import net.rptools.maptool.model.gamedata.proto.GameDataDto;
@@ -94,6 +95,7 @@ class DataStoreUpdateClientsProxy implements DataStore {
    */
   private void notifyClientsOfDataUpdate(String type, String namespace, DataValue data) {
     try {
+      sendAssetsToServer(data);
       MapTool.serverCommand().updateData(type, namespace, toDto(data).get());
     } catch (InterruptedException | ExecutionException e) {
       log.error(I18N.getText("data.error.sendingUpdate"));
@@ -209,7 +211,9 @@ class DataStoreUpdateClientsProxy implements DataStore {
         .thenRun(
             () -> {
               try {
-                MapTool.serverCommand().updateDataNamespace(toDto(propertyType, namespace).get());
+                var namespaceDto = toDto(propertyType, namespace).get();
+                sendAssetsToServer(namespaceDto);
+                MapTool.serverCommand().updateDataNamespace(namespaceDto);
               } catch (InterruptedException | ExecutionException e) {
                 log.error(I18N.getText("data.error.sendingUpdate"));
                 throw new CompletionException(e.getCause());
@@ -225,7 +229,9 @@ class DataStoreUpdateClientsProxy implements DataStore {
         .thenRun(
             () -> {
               try {
-                MapTool.serverCommand().updateDataNamespace(toDto(propertyType, namespace).get());
+                var namespaceDto = toDto(propertyType, namespace).get();
+                sendAssetsToServer(namespaceDto);
+                MapTool.serverCommand().updateDataNamespace(namespaceDto);
               } catch (InterruptedException | ExecutionException e) {
                 log.error(I18N.getText("data.error.sendingUpdate"));
                 throw new CompletionException(e.getCause());
@@ -241,7 +247,9 @@ class DataStoreUpdateClientsProxy implements DataStore {
         .thenRun(
             () -> {
               try {
-                MapTool.serverCommand().updateDataNamespace(toDto(propertyType, namespace).get());
+                var namespaceDto = toDto(propertyType, namespace).get();
+                sendAssetsToServer(namespaceDto);
+                MapTool.serverCommand().updateDataNamespace(namespaceDto);
               } catch (InterruptedException | ExecutionException e) {
                 log.error(I18N.getText("data.error.sendingUpdate"));
                 throw new CompletionException(e.getCause());
@@ -280,5 +288,50 @@ class DataStoreUpdateClientsProxy implements DataStore {
 
   public DataStoreUpdateClientsProxy(DataStore delegate) {
     this.dataStore = delegate;
+  }
+
+  /**
+   * Makes sure the server has the assets referenced by a value before the value is announced.
+   *
+   * <p>The server stores game data in its own data store, and importing an asset-valued property
+   * needs the asset itself. When the server is a dedicated server rather than the GM's own client
+   * it has no other way to obtain it, so the asset is pushed first. This mirrors what {@code
+   * ServerCommand.setBoard} does for board images.
+   *
+   * @param data the value about to be announced
+   */
+  private void sendAssetsToServer(DataValue data) {
+    if (data == null || data.getDataType() != DataType.ASSET || data.isUndefined()) {
+      return;
+    }
+    sendAssetToServer(data.asAsset());
+  }
+
+  /**
+   * Makes sure the server has the assets referenced by a namespace before it is announced.
+   *
+   * @param dto the namespace about to be announced
+   * @see #sendAssetsToServer(DataValue)
+   */
+  private void sendAssetsToServer(GameDataDto dto) {
+    for (var value : dto.getValuesList()) {
+      if (value.getValueCase() == GameDataValueDto.ValueCase.ASSET_VALUE) {
+        sendAssetToServer(AssetManager.getAsset(new MD5Key(value.getAssetValue())));
+      }
+    }
+  }
+
+  /**
+   * Sends a single asset to the server, if it is available locally.
+   *
+   * @param asset the asset to send, which may be {@code null}
+   * @see #sendAssetsToServer(DataValue)
+   */
+  private void sendAssetToServer(Asset asset) {
+    if (asset == null) {
+      log.warn("Game data references an asset that is not available locally; not sending it.");
+      return;
+    }
+    MapTool.serverCommand().putAsset(asset);
   }
 }
