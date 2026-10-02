@@ -501,7 +501,7 @@ public class ClientMessageHandler implements MessageHandler {
             Asset asset = AssetManager.getAsset(a);
             try {
               var addOnLibrary = new AddOnLibraryImporter().importFromAsset(asset);
-              new LibraryManager().reregisterAddOnLibrary(addOnLibrary);
+              new LibraryManager().reregisterAddOnLibraryLocally(addOnLibrary);
             } catch (IOException e) {
               SwingUtilities.invokeLater(
                   () ->

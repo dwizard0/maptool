@@ -224,13 +224,36 @@ public class LibraryManager {
    * @param addOnLibrary the add-on in library to register.
    */
   public boolean reregisterAddOnLibrary(AddOnLibrary addOnLibrary) {
+    if (!reregisterAddOnLibraryLocally(addOnLibrary)) {
+      return false;
+    }
+    if (publishesAddOnChanges()) {
+      try {
+        MapTool.serverCommand()
+            .addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOnLibrary)));
+      } catch (InterruptedException | ExecutionException e) {
+        log.error("Error publishing add-on library to the server", e);
+        return false;
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Replaces an add-on library here only, without telling the server.
+   *
+   * <p>Use this when applying a library the server or another client has already added: handlers
+   * and the handshake all arrive here holding a library that is already known elsewhere, and
+   * publishing it again would send it straight back where it came from. {@link
+   * #reregisterAddOnLibrary(AddOnLibrary)} is the one to use when this client is the one adding it.
+   *
+   * @param addOnLibrary the add-on library to register.
+   * @return false if the library could not be registered.
+   */
+  public boolean reregisterAddOnLibraryLocally(AddOnLibrary addOnLibrary) {
     try {
       addOnLibraryManager.deregisterLibrary(addOnLibrary.getNamespace().get());
       addOnLibraryManager.registerLibrary(addOnLibrary);
-      if (publishesAddOnChanges()) {
-        MapTool.serverCommand()
-            .addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOnLibrary)));
-      }
     } catch (InterruptedException | ExecutionException e) {
       log.error("Error registering add-on in library", e);
       return false;

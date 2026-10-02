@@ -18,7 +18,6 @@ import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.functions.UserDefinedMacroFunctions;
 import net.rptools.maptool.client.macro.MacroManager;
 import net.rptools.maptool.client.script.javascript.JSScriptEngine;
-import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.gamedata.DataStoreManager;
 import net.rptools.maptool.model.library.LibraryManager;
 
@@ -31,6 +30,26 @@ public class CampaignManager {
   /**
    * Clears campaign data that is not stored in the {@link Campaign} object. This is called when a
    * campaign is about to be loaded, sent from the server, or a new campaign is created.
+   */
+  /**
+   * Discards the campaign data this client holds, and tells the server to discard its copy.
+   *
+   * <p>Use this when the campaign in a running game is being replaced, such as opening another
+   * campaign or starting a new one: the replacement publishes the add-on libraries and game data it
+   * brings with it, but nothing would otherwise remove what the previous campaign left on the
+   * server. {@link #clearCampaignData()} is the one to use when this client is merely letting go of
+   * a campaign, which happens on both sides of every connection.
+   */
+  public void replaceCampaignData() {
+    clearCampaignData();
+    new LibraryManager().deregisterAddOnLibraries();
+    MapTool.serverCommand().removeDataStore();
+  }
+
+  /**
+   * Discards the campaign data this client holds, without telling the server.
+   *
+   * @see #replaceCampaignData()
    */
   public void clearCampaignData() {
     // Campaign state is cleared before the UI that displays it. If a panel throws, the

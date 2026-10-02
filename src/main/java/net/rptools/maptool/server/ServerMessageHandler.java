@@ -974,7 +974,7 @@ public class ServerMessageHandler implements MessageHandler {
             try {
               var addOnLibrary =
                   new AddOnLibraryImporter().importFromAsset(AssetManager.getAsset(key));
-              new LibraryManager().reregisterAddOnLibrary(addOnLibrary);
+              new LibraryManager().reregisterAddOnLibraryLocally(addOnLibrary);
               log.info("Registered add-on library {}", lib.getNamespace());
             } catch (IOException e) {
               log.error("Could not register add-on library {}", lib.getNamespace(), e);
