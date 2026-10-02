@@ -74,10 +74,42 @@ done < <(env | grep '^MAPTOOL_POLICY_' | sort)
 # rejects any version string that is not an exact match unless isDevelopment().
 [[ "${MAPTOOL_SKIP_VERSION_CHECK:-false}" == "true" ]] && PROPS+=(-DRUN_FROM_IDE=1)
 
+# Run from a snapshot of this project's own build output rather than from the
+# build directory itself. The JVM loads classes lazily, so rebuilding while a
+# server is running swaps the code out from under it: the server keeps going on
+# whatever it has already loaded and then dies on the first class it has not
+# needed yet, typically when somebody connects. Copying costs a second at
+# startup and makes a build safe to run at any time. Entries outside this
+# project are immutable artifacts from the Gradle cache, so they are used where
+# they lie. Set MAPTOOL_SNAPSHOT_CLASSPATH=false to run straight from build/.
+RUNTIME_LIB="${MAPTOOL_RUNTIME_LIB:-$HERE/run/lib}"
+# $HERE can be a path through a symlink while the classpath file records where
+# the files really are, so both spellings have to be recognised as local.
+HERE_REAL="$(cd "$HERE" && pwd -P)"
+if [[ "${MAPTOOL_SNAPSHOT_CLASSPATH:-true}" == "true" ]]; then
+  rm -rf "$RUNTIME_LIB"
+  mkdir -p "$RUNTIME_LIB"
+  CP=""
+  n=0
+  while IFS= read -r entry; do
+    [[ -z "$entry" ]] && continue
+    if [[ "$entry" == "$HERE"/* || "$entry" == "$HERE_REAL"/* ]]; then
+      n=$((n + 1))
+      dest="$RUNTIME_LIB/$(printf '%03d' "$n")-$(basename "$entry")"
+      cp -a "$entry" "$dest"
+      entry="$dest"
+    fi
+    CP="${CP:+$CP:}$entry"
+  done < <(tr ':' '\n' < "$CP_FILE")
+  echo "Running from a classpath snapshot in $RUNTIME_LIB ($n local entries)" >&2
+else
+  CP="$(cat "$CP_FILE")"
+fi
+
 cd "$HERE"
 exec "$JAVA_BIN" \
   -Xss8M "-Xmx$HEAP" ${MAPTOOL_JVM_OPTS:-} \
   "${OPENS[@]}" \
   "${PROPS[@]}" \
-  -cp "$(cat "$CP_FILE")" \
+  -cp "$CP" \
   net.rptools.maptool.server.HeadlessServer

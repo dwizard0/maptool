@@ -191,6 +191,9 @@ public class ServerMessageHandler implements MessageHandler {
           sendToClients(id, msg);
         }
         case REMOVE_ALL_ADD_ON_LIBRARIES_MSG -> {
+          // Logged because this empties the campaign's add-on libraries, which is a large and
+          // otherwise invisible change to what the server will save and hand to joining clients.
+          log.info("Removing all add-on libraries, as asked by {}", id);
           new LibraryManager().deregisterAddOnLibrariesLocally();
           sendToClients(id, msg);
         }
