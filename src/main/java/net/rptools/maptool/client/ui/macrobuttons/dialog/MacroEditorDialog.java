@@ -838,17 +838,6 @@ public class MacroEditorDialog extends JDialog implements SearchListener {
           }
           MapTool.getFrame().getSelectionPanel().reset();
         }
-        if (button.getPanelClass().equals("CampaignPanel")) {
-          MapTool.serverCommand()
-              .updateCampaignMacros(MapTool.getCampaign().getMacroButtonPropertiesArray());
-          MapTool.getFrame().getCampaignPanel().reset();
-        }
-
-        if (button.getPanelClass().equals("GmPanel")) {
-          MapTool.serverCommand()
-              .updateGmMacros(MapTool.getCampaign().getGmMacroButtonPropertiesArray());
-          MapTool.getFrame().getGmPanel().reset();
-        }
       }
     }
 

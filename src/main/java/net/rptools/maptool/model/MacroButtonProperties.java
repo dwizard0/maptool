@@ -447,8 +447,12 @@ public class MacroButtonProperties implements Comparable<MacroButtonProperties> 
       MacroButtonPrefs.savePreferences(this);
     } else if (saveLocation.equals("CampaignPanel")) {
       MapTool.getCampaign().saveMacroButtonProperty(this, false);
+      MapTool.serverCommand()
+          .updateCampaignMacros(MapTool.getCampaign().getMacroButtonPropertiesArray());
     } else if (saveLocation.equals("GmPanel")) {
       MapTool.getCampaign().saveMacroButtonProperty(this, true);
+      MapTool.serverCommand()
+          .updateGmMacros(MapTool.getCampaign().getGmMacroButtonPropertiesArray());
     }
   }
 
