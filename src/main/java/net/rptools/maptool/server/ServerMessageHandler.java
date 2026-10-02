@@ -140,7 +140,6 @@ public class ServerMessageHandler implements MessageHandler {
                 EXEC_LINK_MSG,
                 EXEC_FUNCTION_MSG,
                 MESSAGE_MSG,
-                SET_BOARD_MSG,
                 RESTORE_ZONE_VIEW_MSG,
                 SET_LIVE_TYPING_LABEL_MSG,
                 SET_TOKEN_LOCATION_MSG,
@@ -149,6 +148,10 @@ public class ServerMessageHandler implements MessageHandler {
                 TOGGLE_TOKEN_MOVE_WAYPOINT_MSG,
                 UPDATE_TOKEN_MOVE_MSG ->
             sendToClients(id, msg);
+        case SET_BOARD_MSG -> {
+          handle(msg.getSetBoardMsg());
+          sendToClients(id, msg);
+        }
         case UPDATE_DATA_STORE_MSG -> {
           var dataMsg = msg.getUpdateDataStoreMsg();
           dataStoreExecutor.execute(() -> handle(dataMsg));
@@ -1101,5 +1104,29 @@ public class ServerMessageHandler implements MessageHandler {
    */
   private void handle(RemoveDataStoreMsg msg) {
     new DataStoreManager().getDefaultDataStoreForRemoteUpdate().clear();
+  }
+
+  /**
+   * Apply a change of a zone's map image to the server's own copy of the zone.
+   *
+   * <p>A board is zone state, not a view setting, so without this the server keeps whatever board
+   * the zone was loaded with: the change is lost from every save, and a client that joins later
+   * receives the old board. The asset itself needs no special handling here, as {@code
+   * ServerCommand.setBoard} sends it to the server before sending this message.
+   *
+   * @param msg the message describing the new board
+   */
+  private void handle(SetBoardMsg msg) {
+    ModelThread.invokeLater(
+        () -> {
+          Zone zone = server.getCampaign().getZone(GUID.valueOf(msg.getZoneGuid()));
+          if (zone != null) {
+            zone.setBoard(
+                new MD5Key(msg.getAssetId()),
+                Mapper.map(msg.getPoint()),
+                (float) msg.getScaleX(),
+                (float) msg.getScaleY());
+          }
+        });
   }
 }
