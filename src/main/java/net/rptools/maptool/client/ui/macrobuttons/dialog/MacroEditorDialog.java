@@ -755,6 +755,10 @@ public class MacroEditorDialog extends JDialog implements SearchListener {
       properties.setToolTip(getToolTipTextField().getText());
       properties.setDisplayHotKey(getDisplayHotkeyCheckBox().isSelected());
 
+      // This also publishes the macro to the server where that applies, so there is nothing more
+      // to do for campaign and GM macros here. It used to be done below instead, inside the button
+      // check, which a newly created macro does not pass: the dialog is opened with the properties
+      // alone, before any button for the macro exists.
       properties.save();
 
       if (button != null) {

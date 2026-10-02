@@ -435,6 +435,19 @@ public class MacroButtonProperties implements Comparable<MacroButtonProperties> 
           Boolean.parseBoolean(props.get("compareApplyToSelectedTokens")));
   }
 
+  /**
+   * Store this macro wherever it belongs, and tell the server about it.
+   *
+   * <p>Which of those two things happens is decided by {@link #saveLocation}: a global macro is a
+   * local preference and goes no further, while a token, campaign or GM macro is shared state that
+   * the server has its own copy of. Callers do not need to notify the server themselves, and should
+   * not: doing it here is what keeps every path that creates, edits, duplicates or imports a macro
+   * consistent, rather than each of them remembering separately.
+   *
+   * <p>Deleting a macro does not come through here, so those paths publish for themselves. See
+   * {@link MapTool#publishCampaignMacros(boolean)}, which explains why publishing matters at all
+   * and why a missing call is invisible until the game is run on a dedicated server.
+   */
   public void save() {
     if (saveLocation.equals("Token") && tokenId != null) {
       Token token = getToken();
@@ -447,12 +460,10 @@ public class MacroButtonProperties implements Comparable<MacroButtonProperties> 
       MacroButtonPrefs.savePreferences(this);
     } else if (saveLocation.equals("CampaignPanel")) {
       MapTool.getCampaign().saveMacroButtonProperty(this, false);
-      MapTool.serverCommand()
-          .updateCampaignMacros(MapTool.getCampaign().getMacroButtonPropertiesArray());
+      MapTool.publishCampaignMacros(false);
     } else if (saveLocation.equals("GmPanel")) {
       MapTool.getCampaign().saveMacroButtonProperty(this, true);
-      MapTool.serverCommand()
-          .updateGmMacros(MapTool.getCampaign().getGmMacroButtonPropertiesArray());
+      MapTool.publishCampaignMacros(true);
     }
   }
 

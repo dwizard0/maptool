@@ -1239,6 +1239,26 @@ public class MapTool {
     return getPlayer() == null || getPlayer().isGM();
   }
 
+  /**
+   * Send the campaign's macro buttons to the server.
+   *
+   * <p>These macros live in the campaign, so every change to them has to be published or the server
+   * never learns about it. When this client hosts the game that happens for free, as the campaign
+   * it edits is the campaign the server serves, which is why a missing call here is invisible until
+   * the game is run on a dedicated server: the macro is then absent from saves and from the
+   * campaign handed to joining clients. Callers that change these macros should call this
+   * afterwards rather than talking to the server themselves, so that there is one place to look.
+   *
+   * @param gmPanel whether the GM panel's macros changed rather than the campaign panel's
+   */
+  public static void publishCampaignMacros(boolean gmPanel) {
+    if (gmPanel) {
+      serverCommand().updateGmMacros(getCampaign().getGmMacroButtonPropertiesArray());
+    } else {
+      serverCommand().updateCampaignMacros(getCampaign().getMacroButtonPropertiesArray());
+    }
+  }
+
   public static void startPersonalServer(Campaign campaign)
       throws IOException, NoSuchAlgorithmException, InvalidKeySpecException {
     var player = new LocalPlayer();

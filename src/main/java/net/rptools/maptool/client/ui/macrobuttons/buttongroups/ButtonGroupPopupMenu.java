@@ -437,8 +437,10 @@ public class ButtonGroupPopupMenu extends JPopupMenu {
                 MacroButtonPrefs.saveMacroButtonsAtNextIndex(toAdd);
               } else if ("CampaignPanel".equals(panelClass)) {
                 MapTool.getCampaign().addMacroButtonPropertiesAtNextIndex(toAdd, false);
+                MapTool.publishCampaignMacros(false);
               } else if ("GmPanel".equals(panelClass)) {
                 MapTool.getCampaign().addMacroButtonPropertiesAtNextIndex(toAdd, true);
+                MapTool.publishCampaignMacros(true);
               }
             }
 

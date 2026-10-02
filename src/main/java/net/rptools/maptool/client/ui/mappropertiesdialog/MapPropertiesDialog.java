@@ -330,12 +330,15 @@ public class MapPropertiesDialog extends JDialog {
     zone.setBackgroundPaint(backgroundPaint);
     zone.setMapAssetId(mapAsset != null ? mapAsset.getMD5Key() : null);
 
+    // Go through the server rather than setting this on the campaign directly: it updates this
+    // client as well, and without it the change would never reach a dedicated server. The zone
+    // need not exist on the server yet, as a landing map id is resolved at lookup time.
     var campaign = MapTool.getClient().getCampaign();
     if (getIsLandingMapCheckBox().isSelected()) {
-      campaign.setLandingMapId(zone.getId());
+      MapTool.serverCommand().setLandingMap(zone.getId());
     } else if (zone.getId().equals(campaign.getLandingMapId())) {
       // This zone was the landing map but got toggled off.
-      campaign.setLandingMapId(null);
+      MapTool.serverCommand().setLandingMap(null);
     }
   }
 

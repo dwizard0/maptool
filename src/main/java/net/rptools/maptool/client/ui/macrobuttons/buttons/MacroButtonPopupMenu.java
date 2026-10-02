@@ -207,12 +207,10 @@ public class MacroButtonPopupMenu extends JPopupMenu {
           MacroButtonPrefs.delete(button.getProperties());
         } else if (panelClass.equals("CampaignPanel")) {
           MapTool.getCampaign().deleteMacroButton(button.getProperties());
-          MapTool.serverCommand()
-              .updateCampaignMacros(MapTool.getCampaign().getMacroButtonPropertiesArray());
+          MapTool.publishCampaignMacros(false);
         } else if (panelClass.equals("GmPanel")) {
           MapTool.getCampaign().deleteGmMacroButton(button.getProperties());
-          MapTool.serverCommand()
-              .updateGmMacros(MapTool.getCampaign().getGmMacroButtonPropertiesArray());
+          MapTool.publishCampaignMacros(true);
         } else if (panelClass.equals("SelectionPanel")) {
           if (MapTool.getFrame()
               .getSelectionPanel()
