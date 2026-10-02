@@ -155,6 +155,27 @@ init). Those are client work -- they call things like `broadcast()` that need a
 chat panel. The "needs initialization" flag is left alone, so the first real
 client still runs first-time setup.
 
+## Game data
+
+Macro and JS game data -- what `data.setData` writes and what an add-on's
+`library.setData` keeps -- lives in a process-wide store rather than in the
+campaign, exactly like the add-on libraries above, and had the same problem:
+the server relayed the updates to the other clients but never applied them to
+its own store. Live play looked right while every save dropped the data and
+every client joining later received an empty store.
+
+The server now applies those updates before relaying them. Two details are
+worth knowing if you are reading that code:
+
+- An asset-valued property is sent to the server as an asset reference, and
+  resolving one waits indefinitely for an asset the server may never have been
+  given. The sending client now pushes the asset first, and the server applies
+  game data on its own thread (`server-game-data`) so a value whose asset never
+  arrives cannot stall message handling.
+- Setting a property needs its namespace to exist. Clients create add-on
+  namespaces while initializing the add-on, which this server deliberately does
+  not do, so it creates a missing namespace itself.
+
 ## Known limitations
 
 - **Macros run on clients, not here.** The server stores macro definitions and
