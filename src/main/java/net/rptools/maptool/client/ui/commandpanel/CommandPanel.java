@@ -164,12 +164,26 @@ public class CommandPanel extends JPanel {
   /**
    * Changes the globally impersonated identity.
    *
+   * <p>The panel itself is updated by {@link #showGlobalIdentity(TokenIdentity)}, which the
+   * client's {@link ImpersonationState} calls back once the identity has changed.
+   *
    * @param globalIdentity the identity to impersonate
    */
   public void setGlobalIdentity(TokenIdentity globalIdentity) {
-    // The state changes first, before anything is told about it. Everything below can read the
-    // identity back -- the HTML frame callbacks run macro code -- and must see the new one.
     impersonation().setGlobalIdentity(globalIdentity);
+  }
+
+  /**
+   * Shows a new global identity: the Impersonate panel, the avatar and name beside the chat box,
+   * and the HTML frames' {@code onChangeImpersonated} callbacks, in that order.
+   *
+   * <p>This is the {@link ImpersonationState.GlobalIdentityListener} for each client, attached in
+   * {@code MapTool} when the client is set up. It only displays; by the time it runs the identity
+   * has already changed, which is what lets the HTML frame callbacks read the new one back.
+   *
+   * @param globalIdentity the identity now in effect
+   */
+  public void showGlobalIdentity(TokenIdentity globalIdentity) {
     Token token = globalIdentity.getToken();
 
     // Change the impersonated panel
