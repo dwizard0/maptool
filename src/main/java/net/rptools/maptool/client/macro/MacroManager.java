@@ -319,8 +319,9 @@ public class MacroManager {
         // Preprocess line if required.
         if (def == null || def.expandRolls()) {
           Token tokenInContext = null;
-          // getCurrentZone() rather than the frame, so that with no window (a headless server) this
-          // behaves as it always has with no map open: the command has no token in context.
+          // getCurrentZone() rather than the frame, so that with no window at all (a server run
+          // without a UI) this behaves as it always has with no map open: the command has no token
+          // in context.
           Zone zone = MapTool.getCurrentZone();
           if (zone != null) {
             // The token a chat command runs against is whoever the player is speaking as, which

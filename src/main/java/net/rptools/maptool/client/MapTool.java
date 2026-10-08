@@ -1373,10 +1373,10 @@ public class MapTool {
    *
    * <p>Most code reaches the current map as {@code
    * MapTool.getFrame().getCurrentZoneRenderer().getZone()}. That fails with a {@code
-   * NullPointerException} wherever there is no window -- on a headless server, or in unit tests --
-   * and also in a normal client when no map is open. This returns {@code null} in all of those
-   * cases instead, so a caller can treat them all as "no map is open", which most callers already
-   * handle.
+   * NullPointerException} wherever there is no window -- on a server run without a UI, or in unit
+   * tests -- and also in a normal client when no map is open. This returns {@code null} in all of
+   * those cases instead, so a caller can treat them all as "no map is open", which most callers
+   * already handle.
    *
    * <p>A process with no window has no notion of a current map at all, so this is always {@code
    * null} there. If one is added later -- for example, a map chosen for macros run on a server --

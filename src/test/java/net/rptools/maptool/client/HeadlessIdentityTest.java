@@ -28,12 +28,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The impersonation identity must be usable where there is no window, as on a headless server.
+ * The impersonation identity must be usable where there is no window, as on a server run without a
+ * UI.
  *
  * <p>Tests run without creating a {@code MapToolFrame}, so {@link MapTool#getFrame()} is {@code
- * null} here, exactly as it is on a headless server. Before {@link MapTool#getCurrentZone()}
- * existed, each of these reached through the frame for the current map and failed with a {@code
- * NullPointerException}.
+ * null} here, exactly as it is on a server run without a UI. Before {@link
+ * MapTool#getCurrentZone()} existed, each of these reached through the frame for the current map
+ * and failed with a {@code NullPointerException}.
  */
 public class HeadlessIdentityTest {
 

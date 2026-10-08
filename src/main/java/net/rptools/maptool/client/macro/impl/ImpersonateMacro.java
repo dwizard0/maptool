@@ -52,9 +52,9 @@ public class ImpersonateMacro implements Macro {
       name = macro.substring(0, index).trim();
       macro = macro.substring(index + 1);
     }
-    // With no map to look on -- no map open, or no window at all as on a headless server -- there
-    // is no token, and the name is impersonated on its own, as it is for a name that no token has.
-    // This used to fail with a NullPointerException instead.
+    // With no map to look on -- no map open, or no window at all, as on a server run without a
+    // UI -- there is no token, and the name is impersonated on its own, as it is for a name that
+    // no token has. This used to fail with a NullPointerException instead.
     Zone zone = MapTool.getCurrentZone();
     Token token = zone == null ? null : zone.resolveToken(name);
     if (token != null) {

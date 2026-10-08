@@ -879,7 +879,7 @@ public class FindTokenFunctions extends AbstractFunction {
       return null;
     }
     if (zoneNameOrId == null || zoneNameOrId.length() == 0) {
-      // Null with no map open, and also with no window at all, as on a headless server.
+      // Null with no map open, and also with no window at all, as on a server run without a UI.
       Zone zone = MapTool.getCurrentZone();
       return zone == null ? null : zone.resolveToken(identifier);
     } else {
@@ -923,7 +923,7 @@ public class FindTokenFunctions extends AbstractFunction {
       return null;
     }
     if (zoneName == null || zoneName.length() == 0) {
-      // Null with no map open, and also with no window at all, as on a headless server. The
+      // Null with no map open, and also with no window at all, as on a server run without a UI. The
       // impersonation identity looks its token up through here.
       Zone zone = MapTool.getCurrentZone();
       return zone == null ? null : zone.getToken(guid);

@@ -102,6 +102,13 @@ public class CommandPanel extends JPanel {
   /**
    * The identity state this panel displays and changes.
    *
+   * <p>Who the player is speaking as used to be stored in this panel. It is now held by the client
+   * in an {@link ImpersonationState}, and the identity methods below ({@code getIdentity}, {@code
+   * setGlobalIdentity}, {@code enterContextIdentity} and so on) only forward to it. They are kept
+   * so that existing callers continue to work; new code should use {@code
+   * MapTool.getClient().getImpersonation()} directly, which does not need a UI. What remains here
+   * is the display: {@link #showGlobalIdentity(TokenIdentity)} and the avatar and label.
+   *
    * <p>Looked up on every use rather than kept in a field: it belongs to the client, and a new
    * client is created on every connection.
    *

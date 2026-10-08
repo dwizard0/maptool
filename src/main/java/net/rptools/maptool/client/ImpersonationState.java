@@ -43,8 +43,9 @@ import net.rptools.maptool.model.GUID;
  * /im token: macro} -- which includes every click of a token's macro button -- would fire {@code
  * onChangeImpersonated} in every open HTML frame.
  *
- * <p><b>Threading.</b> Like the rest of the client's model state this is not thread safe, and is
- * expected to be used from the model thread only.
+ * <p><b>Threading.</b> This is not thread safe. Like the chat panel that used to hold it, it is
+ * meant to be used from the thread that runs macros and chat commands, which in a client is the
+ * Swing event dispatch thread.
  */
 public class ImpersonationState {
 
