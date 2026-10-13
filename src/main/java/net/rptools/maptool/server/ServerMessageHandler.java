@@ -432,7 +432,13 @@ public class ServerMessageHandler implements MessageHandler {
         () -> {
           server.updateServerPolicy(
               ServerPolicy.fromDto(msg.getPolicy())); // updates the server policy, fixes #1648
-          MapTool.getFrame().getToolbox().updateTools();
+          if (MapTool.isHeadless()) {
+            // No toolbox to refresh. Keep the policy that model code reads (see HeadlessServer)
+            // the same as the one this server now enforces.
+            MapTool.getClient().setServerPolicy(server.getPolicy());
+          } else {
+            MapTool.getFrame().getToolbox().updateTools();
+          }
         });
   }
 

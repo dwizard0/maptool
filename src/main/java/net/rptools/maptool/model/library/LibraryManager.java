@@ -172,6 +172,11 @@ public class LibraryManager {
    * @return true if add-on changes made here should be sent to the server
    */
   private static boolean publishesAddOnChanges() {
+    if (MapTool.isHeadless()) {
+      // A headless server applies the add-on changes its clients send and relays them to the
+      // others. It must never publish a change itself: it would be sending it to itself.
+      return false;
+    }
     if (MapTool.isHostingServer()) {
       return true;
     }

@@ -34,7 +34,6 @@ import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.tool.drawing.UndoPerZone;
 import net.rptools.maptool.client.ui.MapToolFrame;
 import net.rptools.maptool.client.ui.zone.PlayerView;
-import net.rptools.maptool.client.ui.zone.ZoneView;
 import net.rptools.maptool.client.ui.zone.renderer.ZoneRenderer;
 import net.rptools.maptool.events.MapToolEventBus;
 import net.rptools.maptool.language.I18N;
@@ -1184,9 +1183,6 @@ public class Zone {
       boolean isAllowed =
           MapTool.getPlayer().isGM() || !MapTool.getServerPolicy().useStrictTokenManagement();
       String playerId = MapTool.getPlayer().getName();
-      MapToolFrame frame = MapTool.getFrame();
-      ZoneRenderer zr = frame.getZoneRenderer(getId());
-      ZoneView zoneView = zr.getZoneView();
       ExposedAreaMetaData meta = null;
 
       for (GUID guid : selectedToks) {
@@ -1239,7 +1235,7 @@ public class Zone {
         meta.clearExposedAreaHistory();
         meta.addToExposedAreaHistory(area);
         exposedAreaMeta.put(tok.getExposedAreaGUID(), meta);
-        MapTool.getFrame().getZoneRenderer(this.getId()).getZoneView().flush(tok);
+        flushViewOf(tok);
         putToken(tok);
       }
     } else {
@@ -1247,6 +1243,25 @@ public class Zone {
       exposedArea.add(area);
     }
     new MapToolEventBus().getMainEventBus().post(new FogChanged(this));
+  }
+
+  /**
+   * Discards what the view of this zone has cached about a token's vision, if this zone is being
+   * viewed.
+   *
+   * <p>Per-token fog changes the area a token has exposed, which the view caches. When there is no
+   * window (a server run without a UI), or this zone has no renderer (for example while the
+   * AutoSaveManager copies zones), there is nothing to discard. Neither is a reason to stop
+   * updating the fog itself: that is model state, and a server must record it like any client.
+   *
+   * @param token the token whose cached vision is out of date
+   */
+  private void flushViewOf(Token token) {
+    MapToolFrame frame = MapTool.getFrame();
+    ZoneRenderer renderer = frame == null ? null : frame.getZoneRenderer(getId());
+    if (renderer != null) {
+      renderer.getZoneView().flush(token);
+    }
   }
 
   public void hideArea(Area area, Set<GUID> selectedToks) {
@@ -1277,7 +1292,7 @@ public class Zone {
         }
         meta.removeExposedAreaHistory(area);
         exposedAreaMeta.put(tok.getExposedAreaGUID(), meta);
-        MapTool.getFrame().getZoneRenderer(this.getId()).getZoneView().flush(tok);
+        flushViewOf(tok);
         putToken(tok);
       }
     } else {

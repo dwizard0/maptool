@@ -1333,9 +1333,19 @@ public class MapTool {
     return Locale.getDefault(Locale.Category.DISPLAY).getLanguage();
   }
 
-  /** returns whether the player is using a personal server. */
+  /**
+   * Returns whether the player is using a personal server: the private, single-user server MapTool
+   * runs in the background when the player has not started or joined one.
+   *
+   * <p>Always {@code false} in a headless process. A headless process still has that background
+   * server object, created when this class is initialised, but what it actually runs is a dedicated
+   * server for other people's clients. Model code that asks this question -- whether fog is
+   * recorded per token, which movement metric applies -- must give the answers a hosted server
+   * would, not the single-user ones, or the server's copy of the campaign drifts from what its
+   * clients see.
+   */
   public static boolean isPersonalServer() {
-    return server != null && server.isPersonalServer();
+    return !headless && server != null && server.isPersonalServer();
   }
 
   /** returns whether the player is hosting a server - personal servers do not count. */

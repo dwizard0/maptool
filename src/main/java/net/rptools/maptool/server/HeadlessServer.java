@@ -105,6 +105,10 @@ public class HeadlessServer {
     }
 
     ServerPolicy policy = buildPolicy();
+    // Model code -- per-token fog, the movement metric -- reads the policy through
+    // MapTool.getServerPolicy(), which asks the background client. Give that client the policy this
+    // server enforces, not the default one it was created with.
+    MapTool.getClient().setServerPolicy(policy);
     ServerConfig config =
         new ServerConfig("gm", gmPassword, playerPassword, port, serverName, null, false, false);
     DefaultPlayerDatabase playerDb = new DefaultPlayerDatabase(playerPassword, gmPassword);
