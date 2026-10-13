@@ -120,6 +120,13 @@ public class AddTokenStateMacro implements Macro {
     }
     MapToolUtil.uploadAssetIds(tokenOverlay.getAssetIds());
     MapTool.getCampaign().getTokenStatesMap().put(tokenOverlay.getName(), tokenOverlay);
+    // Token states are campaign properties, and the code above only changed this client's
+    // copy. Send a GM's change to the server, as the Campaign Properties dialog does; otherwise
+    // other players never see the new state, and a dedicated server loses it altogether. A
+    // player's change stays local, as it always has: players cannot change campaign properties.
+    if (MapTool.getPlayer().isGM()) {
+      MapTool.serverCommand().updateCampaign(MapTool.getCampaign().getCampaignProperties());
+    }
 
     MapTool.addLocalMessage(I18N.getText("addtokenstate.added", tokenOverlay.getName()));
   }
