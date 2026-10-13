@@ -145,7 +145,9 @@ public class HeadlessServer {
             saveTarget,
             Integer.getInteger("maptool.autosaveMinutes", 5),
             !"false".equals(System.getProperty("maptool.backups")),
-            Integer.getInteger("maptool.backupsToKeep", 24));
+            Integer.getInteger("maptool.backupsToKeep", 24),
+            Integer.getInteger("maptool.dailyBackups", 14),
+            Integer.getInteger("maptool.idleSaveMinutes", 60));
     persister.start();
 
     Runtime.getRuntime()

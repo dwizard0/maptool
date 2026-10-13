@@ -45,17 +45,29 @@ Configuration is entirely environmental.
 | `MAPTOOL_PLAYER_PASSWORD` | player | player password |
 | `MAPTOOL_CAMPAIGN` | (none) | campaign to load; a basic campaign if unset |
 | `MAPTOOL_SAVE` | `<apphome>/server/campaign.cmpgn` | where autosave writes |
-| `MAPTOOL_AUTOSAVE_MINUTES` | 5 | autosave interval; 0 disables |
-| `MAPTOOL_BACKUPS` | true | keep timestamped backups beside the save |
-| `MAPTOOL_BACKUPS_TO_KEEP` | 24 | how many backups to retain; 0 or less keeps all |
+| `MAPTOOL_AUTOSAVE_MINUTES` | 5 | how often to check for changes and save; 0 disables |
+| `MAPTOOL_IDLE_SAVE_MINUTES` | 60 | save at least this often even when nothing changed; 0 saves every interval |
+| `MAPTOOL_BACKUPS` | true | keep timestamped backups beside the save, and a copy taken at startup |
+| `MAPTOOL_BACKUPS_TO_KEEP` | 24 | how many of the newest backups to retain; 0 or less keeps all |
+| `MAPTOOL_DAILY_BACKUPS` | 14 | also keep the newest backup from each of this many days |
 | `MAPTOOL_REGISTER` | false | publish to the public registry |
 | `MAPTOOL_HEAP` | 2G | JVM max heap |
 | `MAPTOOL_JVM_OPTS` | (none) | extra JVM flags, e.g. `-Dmaptool.version=...` |
 | `MAPTOOL_SKIP_VERSION_CHECK` | false | accept any client version (sets `RUN_FROM_IDE`) |
 
-**Backups are capped.** Before that cap existed, a server saving every five
-minutes accumulated 3,800 backups totalling 50GB. 24 is two hours of history at
-the default interval.
+**Saves and backups.** Every five minutes the server saves the campaign, but
+only if a client has changed something since the last save; an idle server
+still saves once an hour as a safety net, and always on shutdown. Each save
+keeps the previous file as `<save>.<timestamp>.bak`. Retention keeps the 24
+newest of those plus the newest from each of the last 14 days, so a mistake
+noticed days later can still be undone. On startup the campaign file is also
+copied to `<save>.<timestamp>.startup` (the newest 5 are kept).
+
+Backups are capped on purpose: before the cap existed, a server saving every
+five minutes accumulated 3,800 backups totalling 50GB.
+
+To restore one, stop the server, copy the backup over the save file, and start
+it again.
 
 ### Server policy
 
@@ -132,7 +144,7 @@ if it loops.
 - **Logs**: `journalctl -u maptool-headless`. log4j2 also writes to
   `~/.maptool-rptools/logs`, rotated and zipped; it stays under a megabyte.
 - **Saves**: `MAPTOOL_SAVE`, plus `.bak` copies capped by
-  `MAPTOOL_BACKUPS_TO_KEEP`. The campaign is copied on the model thread and the
+  `MAPTOOL_BACKUPS_TO_KEEP` and `MAPTOOL_DAILY_BACKUPS`. The campaign is copied on the model thread and the
   copy is written off it, matching what `AutoSaveManager` does in the client.
 - **A clean startup logs no stack traces.** If one appears, something regressed.
 - `getTokenInitiative: index = -1` lines at ERROR level during startup are

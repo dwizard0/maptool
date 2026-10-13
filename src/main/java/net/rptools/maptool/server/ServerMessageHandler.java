@@ -19,6 +19,7 @@ import static net.rptools.maptool.server.proto.Message.MessageTypeCase.HEARTBEAT
 import java.awt.geom.Area;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
@@ -72,6 +73,36 @@ import org.apache.logging.log4j.Logger;
 public class ServerMessageHandler implements MessageHandler {
   private final MapToolServer server;
   private static final Logger log = LogManager.getLogger(ServerMessageHandler.class);
+
+  /**
+   * Messages that never change the campaign: chat, pointers, token-drag previews, view changes,
+   * requests for data, and player status. Every other message is counted as a possible change (see
+   * {@link MapToolServer#noteCampaignChange()}), so a message type added later is saved by default
+   * rather than silently skipped.
+   */
+  private static final Set<Message.MessageTypeCase> VIEW_ONLY_MESSAGES =
+      EnumSet.of(
+          Message.MessageTypeCase.HEARTBEAT_MSG,
+          Message.MessageTypeCase.MESSAGE_MSG,
+          Message.MessageTypeCase.EXEC_LINK_MSG,
+          Message.MessageTypeCase.EXEC_FUNCTION_MSG,
+          Message.MessageTypeCase.ENFORCE_NOTIFICATION_MSG,
+          Message.MessageTypeCase.ENFORCE_ZONE_MSG,
+          Message.MessageTypeCase.ENFORCE_ZONE_VIEW_MSG,
+          Message.MessageTypeCase.RESTORE_ZONE_VIEW_MSG,
+          Message.MessageTypeCase.SET_LIVE_TYPING_LABEL_MSG,
+          Message.MessageTypeCase.SET_TOKEN_LOCATION_MSG,
+          Message.MessageTypeCase.START_TOKEN_MOVE_MSG,
+          Message.MessageTypeCase.STOP_TOKEN_MOVE_MSG,
+          Message.MessageTypeCase.TOGGLE_TOKEN_MOVE_WAYPOINT_MSG,
+          Message.MessageTypeCase.UPDATE_TOKEN_MOVE_MSG,
+          Message.MessageTypeCase.SHOW_POINTER_MSG,
+          Message.MessageTypeCase.MOVE_POINTER_MSG,
+          Message.MessageTypeCase.HIDE_POINTER_MSG,
+          Message.MessageTypeCase.GET_ASSET_MSG,
+          Message.MessageTypeCase.GET_ZONE_MSG,
+          Message.MessageTypeCase.UPDATE_PLAYER_STATUS_MSG,
+          Message.MessageTypeCase.BOOT_PLAYER_MSG);
 
   /**
    * Applies game data updates to the server's own data store, off the message handling thread.
@@ -154,32 +185,56 @@ public class ServerMessageHandler implements MessageHandler {
         }
         case UPDATE_DATA_STORE_MSG -> {
           var dataMsg = msg.getUpdateDataStoreMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case UPDATE_DATA_NAMESPACE_MSG -> {
           var dataMsg = msg.getUpdateDataNamespaceMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case UPDATE_DATA_MSG -> {
           var dataMsg = msg.getUpdateDataMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case REMOVE_DATA_MSG -> {
           var dataMsg = msg.getRemoveDataMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case REMOVE_DATA_NAMESPACE_MSG -> {
           var dataMsg = msg.getRemoveDataNamespaceMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case REMOVE_DATA_STORE_MSG -> {
           var dataMsg = msg.getRemoveDataStoreMsg();
-          dataStoreExecutor.execute(() -> handle(dataMsg));
+          dataStoreExecutor.execute(
+              () -> {
+                handle(dataMsg);
+                server.noteCampaignChange();
+              });
           sendToClients(id, msg);
         }
         case ADD_ADD_ON_LIBRARY_MSG -> {
@@ -343,6 +398,12 @@ public class ServerMessageHandler implements MessageHandler {
           sendToClients(id, msg);
         }
         default -> log.warn(msgType + " not handled.");
+      }
+      // After the switch, not before: by now the change has been applied or queued on the model
+      // thread, so a save that sees the new count also sees the change. Game data is applied on
+      // its own thread, so those messages are counted again once they have been applied.
+      if (!VIEW_ONLY_MESSAGES.contains(msgType)) {
+        server.noteCampaignChange();
       }
       log.debug("from " + id + " handled: " + msgType);
     } catch (Exception e) {

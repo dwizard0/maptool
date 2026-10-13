@@ -22,6 +22,7 @@ import java.util.Map.Entry;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import net.rptools.clientserver.ConnectionFactory;
@@ -91,6 +92,14 @@ public class MapToolServer {
   @Nullable private ServiceAnnouncer announcer;
   private Campaign campaign;
   private ServerPolicy policy;
+
+  /**
+   * How many client messages so far may have changed the campaign. Only ever increases. A dedicated
+   * server's autosave compares it with the value at its last save to skip saving a campaign nobody
+   * has touched; see {@link #noteCampaignChange()}.
+   */
+  private final AtomicLong campaignChanges = new AtomicLong();
+
   private HeartbeatThread heartbeatThread;
   private final DisconnectHandler onConnectionDisconnected;
   private final ServerObserver serverObserver;
@@ -338,6 +347,25 @@ public class MapToolServer {
       campaign = new Campaign();
     }
     this.campaign = campaign;
+  }
+
+  /**
+   * Records that the campaign may have changed.
+   *
+   * <p>Call this <em>after</em> the change has been applied, or queued for the model thread: a save
+   * that sees the new count must also see the change. Calling it for something that turns out not
+   * to change anything only costs one unneeded save.
+   */
+  public void noteCampaignChange() {
+    campaignChanges.incrementAndGet();
+  }
+
+  /**
+   * @return how many possible campaign changes have been recorded so far.
+   * @see #noteCampaignChange()
+   */
+  public long getCampaignChangeCount() {
+    return campaignChanges.get();
   }
 
   public Campaign getCampaign() {

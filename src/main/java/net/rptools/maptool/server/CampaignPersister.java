@@ -19,11 +19,14 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
-import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
@@ -47,44 +50,99 @@ import org.apache.logging.log4j.Logger;
  * GUI, the dispatch thread when headless). This follows the same pattern as {@code
  * AutoSaveManager}: the campaign is copied on the model thread, and only the copy is serialized on
  * the autosave thread, so incoming changes cannot race the save.
+ *
+ * <p><b>When it saves.</b> A timed save is skipped if no client message has changed the campaign
+ * since the last one (see {@link MapToolServer#noteCampaignChange()}). An idle server would
+ * otherwise write an identical campaign every interval, and each save pushes an older backup out.
+ * As a safety net against a change that was not counted, the campaign is still saved at least once
+ * every {@code idleSaveMinutes}, changed or not. The save on shutdown always happens.
+ *
+ * <p><b>Backups.</b> Before each save replaces the campaign file, the previous file is kept as
+ * {@code <name>.<timestamp>.bak}. Retention keeps the newest {@code backupsToKeep} of those, plus
+ * the newest one from each of the last {@code dailyBackups} days, so a mistake noticed days later
+ * can still be undone. When the server starts, the campaign file is also copied to {@code
+ * <name>.<timestamp>.startup} before anything is written; the newest {@value
+ * #STARTUP_BACKUPS_TO_KEEP} of those are kept.
  */
 public class CampaignPersister {
   private static final Logger log = LogManager.getLogger(CampaignPersister.class);
   private static final long COPY_TIMEOUT_SECONDS = 60;
   private static final int DEFAULT_BACKUPS_TO_KEEP = 24;
-  private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
+  private static final int DEFAULT_DAILY_BACKUPS = 14;
+  private static final int DEFAULT_IDLE_SAVE_MINUTES = 60;
+  private static final int STARTUP_BACKUPS_TO_KEEP = 5;
+  private static final String STAMP_PATTERN = "yyyy-MM-dd_HH-mm-ss";
+  private static final DateTimeFormatter STAMP = DateTimeFormatter.ofPattern(STAMP_PATTERN);
 
   private final MapToolServer server;
   private final File target;
   private final int intervalMinutes;
   private final boolean keepBackups;
   private final int backupsToKeep;
+  private final int dailyBackups;
+  private final int idleSaveMinutes;
   private ScheduledExecutorService scheduler;
+
+  /** The server's change count when the last save started; -1 before the first save. */
+  private long changesAtLastSave = -1;
+
+  /** When the last save finished, in milliseconds; the time of start-up before the first. */
+  private long lastSaveMillis = System.currentTimeMillis();
 
   public CampaignPersister(
       MapToolServer server, File target, int intervalMinutes, boolean keepBackups) {
     this(server, target, intervalMinutes, keepBackups, DEFAULT_BACKUPS_TO_KEEP);
   }
 
-  /**
-   * @param backupsToKeep how many timestamped backups to retain; older ones are deleted after each
-   *     save. Zero or less keeps every backup, which grows without bound.
-   */
   public CampaignPersister(
       MapToolServer server,
       File target,
       int intervalMinutes,
       boolean keepBackups,
       int backupsToKeep) {
+    this(
+        server,
+        target,
+        intervalMinutes,
+        keepBackups,
+        backupsToKeep,
+        DEFAULT_DAILY_BACKUPS,
+        DEFAULT_IDLE_SAVE_MINUTES);
+  }
+
+  /**
+   * @param backupsToKeep how many of the newest timestamped backups to retain. Zero or less keeps
+   *     every backup, which grows without bound.
+   * @param dailyBackups additionally keep the newest backup from each of this many recent days,
+   *     today included. Zero or less keeps no extra daily backups.
+   * @param idleSaveMinutes save at least this often even when nothing has changed. Zero or less
+   *     saves every interval, changed or not, as before.
+   */
+  public CampaignPersister(
+      MapToolServer server,
+      File target,
+      int intervalMinutes,
+      boolean keepBackups,
+      int backupsToKeep,
+      int dailyBackups,
+      int idleSaveMinutes) {
     this.server = server;
     this.target = target;
     this.intervalMinutes = intervalMinutes;
     this.keepBackups = keepBackups;
     this.backupsToKeep = backupsToKeep;
+    this.dailyBackups = dailyBackups;
+    this.idleSaveMinutes = idleSaveMinutes;
   }
 
-  /** Begin periodic saves. No-op if the interval is zero or negative. */
+  /**
+   * Copy the campaign file aside before the server writes anything, then begin periodic saves.
+   * Periodic saves are not started if the interval is zero or negative.
+   */
   public void start() {
+    if (keepBackups) {
+      backUpAtStartup();
+    }
     if (intervalMinutes <= 0) {
       log.info("Autosave disabled");
       return;
@@ -97,44 +155,86 @@ public class CampaignPersister {
               return t;
             });
     scheduler.scheduleWithFixedDelay(
-        this::saveQuietly, intervalMinutes, intervalMinutes, TimeUnit.MINUTES);
-    log.info("Autosaving campaign to {} every {} minute(s)", target, intervalMinutes);
+        this::saveIfDue, intervalMinutes, intervalMinutes, TimeUnit.MINUTES);
+    log.info(
+        "Autosaving campaign to {} every {} minute(s) when it has changed, and at least every {}"
+            + " minute(s); keeping {} recent backup(s) and one a day for {} day(s)",
+        target,
+        intervalMinutes,
+        idleSaveMinutes,
+        backupsToKeep,
+        dailyBackups);
   }
 
-  /** Stop periodic saves and write one final copy. */
+  /** Stop periodic saves and write one final copy, whether or not anything changed. */
   public void shutdown() {
     if (scheduler != null) {
       scheduler.shutdownNow();
     }
     log.info("Writing final campaign save");
-    saveQuietly();
-  }
-
-  private void saveQuietly() {
     try {
       save();
     } catch (Exception e) {
-      // Never let a failed save kill the scheduler or block shutdown.
+      // Never block shutdown on a failed save.
       log.error("Campaign save failed", e);
     }
   }
 
+  /** The timed save: skipped when nothing has changed, unless the idle limit has been reached. */
+  private void saveIfDue() {
+    try {
+      if (!isSaveDue(
+          server.getCampaignChangeCount(),
+          changesAtLastSave,
+          System.currentTimeMillis() - lastSaveMillis,
+          idleSaveMinutes)) {
+        log.debug("Campaign unchanged since the last save; not saving");
+        return;
+      }
+      save();
+    } catch (Exception e) {
+      // Never let a failed save kill the scheduler.
+      log.error("Campaign save failed", e);
+    }
+  }
+
+  /**
+   * Decides whether a timed save should write the campaign.
+   *
+   * @param changes the server's change count now
+   * @param changesAtLastSave the change count when the last save started, or -1 if there has been
+   *     none
+   * @param millisSinceLastSave how long since the last save finished (or since start-up)
+   * @param idleSaveMinutes save at least this often even when unchanged; zero or less means always
+   * @return whether to save
+   */
+  static boolean isSaveDue(
+      long changes, long changesAtLastSave, long millisSinceLastSave, int idleSaveMinutes) {
+    if (idleSaveMinutes <= 0) {
+      return true;
+    }
+    if (changes != changesAtLastSave && changes > 0) {
+      return true;
+    }
+    return millisSinceLastSave >= TimeUnit.MINUTES.toMillis(idleSaveMinutes);
+  }
+
   /** Write the campaign, atomically replacing any previous copy. */
   public synchronized void save() throws IOException {
+    // Read the count before copying: a change counted after this point may or may not make it into
+    // this copy, and must be saved again next time.
+    long changes = server.getCampaignChangeCount();
     Campaign campaign = copyOnModelThread();
     if (campaign == null) {
       log.warn("No campaign to save");
       return;
     }
-
     Path dir = target.getAbsoluteFile().toPath().getParent();
     Files.createDirectories(dir);
-
     File tmp = File.createTempFile("campaign-", ".tmp", dir.toFile());
     long start = System.currentTimeMillis();
     try {
       PersistenceUtil.saveCampaign(campaign, tmp);
-
       if (keepBackups && target.exists()) {
         File backup =
             new File(
@@ -142,12 +242,13 @@ public class CampaignPersister {
         Files.copy(target.toPath(), backup.toPath(), StandardCopyOption.REPLACE_EXISTING);
         pruneBackups(dir.toFile());
       }
-
       Files.move(
           tmp.toPath(),
           target.toPath(),
           StandardCopyOption.REPLACE_EXISTING,
           StandardCopyOption.ATOMIC_MOVE);
+      changesAtLastSave = changes;
+      lastSaveMillis = System.currentTimeMillis();
       log.info(
           "Saved campaign to {} ({} ms, {} zones)",
           target,
@@ -157,6 +258,35 @@ public class CampaignPersister {
       if (tmp.exists() && !tmp.delete()) {
         log.debug("Could not remove temp save file {}", tmp);
       }
+    }
+  }
+
+  /**
+   * Copy the campaign file aside before the server writes anything.
+   *
+   * <p>The ordinary backups are only taken when a save replaces the file, and retention eventually
+   * removes them. This keeps the state the server started from, so that a bad load or a crash
+   * during the first save can always be undone.
+   */
+  private void backUpAtStartup() {
+    if (!target.exists()) {
+      return;
+    }
+    File dir = target.getAbsoluteFile().getParentFile();
+    File copy =
+        new File(dir, target.getName() + "." + LocalDateTime.now().format(STAMP) + ".startup");
+    try {
+      Files.copy(target.toPath(), copy.toPath(), StandardCopyOption.REPLACE_EXISTING);
+      log.info("Copied the campaign to {} before starting", copy.getName());
+    } catch (IOException e) {
+      log.error("Could not copy the campaign aside before starting", e);
+      return;
+    }
+    List<String> startups = listNames(dir, ".startup");
+    for (String name :
+        namesToDelete(
+            startups, target.getName(), ".startup", STARTUP_BACKUPS_TO_KEEP, 0, LocalDate.now())) {
+      deleteQuietly(new File(dir, name));
     }
   }
 
@@ -192,36 +322,121 @@ public class CampaignPersister {
   }
 
   /**
-   * Delete the oldest backups beyond the retention limit.
+   * Delete the backups that retention no longer keeps.
    *
    * <p>A server saves on a timer and nobody is watching it, so without this the backups accumulate
-   * for as long as the server runs -- one full copy of the campaign every interval, forever.
+   * for as long as the server runs.
    *
    * @param dir the directory holding the backups
    */
   private void pruneBackups(File dir) {
-    if (backupsToKeep <= 0) {
-      return;
+    List<String> toDelete =
+        namesToDelete(
+            listNames(dir, ".bak"),
+            target.getName(),
+            ".bak",
+            backupsToKeep,
+            dailyBackups,
+            LocalDate.now());
+    for (String name : toDelete) {
+      deleteQuietly(new File(dir, name));
     }
-    File[] found =
-        dir.listFiles(
-            (d, name) -> name.startsWith(target.getName() + ".") && name.endsWith(".bak"));
-    if (found == null || found.length <= backupsToKeep) {
-      return;
+    if (!toDelete.isEmpty()) {
+      log.info(
+          "Pruned {} old campaign backup(s), keeping {} recent and one a day for {} day(s)",
+          toDelete.size(),
+          backupsToKeep,
+          dailyBackups);
     }
-    List<File> backups = new ArrayList<>(List.of(found));
-    // The names carry a sortable timestamp, so this orders oldest first without touching the
-    // filesystem's modification times, which a copy or a restore can rewrite.
-    backups.sort(Comparator.comparing(File::getName));
-    int toDelete = backups.size() - backupsToKeep;
-    for (int i = 0; i < toDelete; i++) {
-      File old = backups.get(i);
-      if (old.delete()) {
-        log.debug("Removed old campaign backup {}", old.getName());
-      } else {
-        log.warn("Could not remove old campaign backup {}", old);
+  }
+
+  private List<String> listNames(File dir, String suffix) {
+    String[] found =
+        dir.list((d, name) -> name.startsWith(target.getName() + ".") && name.endsWith(suffix));
+    return found == null ? List.of() : List.of(found);
+  }
+
+  private static void deleteQuietly(File file) {
+    if (file.delete()) {
+      log.debug("Removed old campaign backup {}", file.getName());
+    } else {
+      log.warn("Could not remove old campaign backup {}", file);
+    }
+  }
+
+  /**
+   * Works out which backups retention removes.
+   *
+   * <p>Kept are the newest {@code keepRecent} backups, and the newest backup from each of the last
+   * {@code keepDays} days, today included. Everything else with the right name is returned. A file
+   * whose timestamp cannot be read is never deleted.
+   *
+   * @param names file names in the backup directory
+   * @param campaignName the campaign file's name; backups are {@code
+   *     <campaignName>.<stamp><suffix>}
+   * @param suffix {@code .bak} or {@code .startup}
+   * @param keepRecent how many of the newest to keep; zero or less keeps everything
+   * @param keepDays keep the newest backup from each of this many recent days
+   * @param today the current date
+   * @return the names to delete, oldest first
+   */
+  static List<String> namesToDelete(
+      List<String> names,
+      String campaignName,
+      String suffix,
+      int keepRecent,
+      int keepDays,
+      LocalDate today) {
+    if (keepRecent <= 0) {
+      return List.of();
+    }
+    String prefix = campaignName + ".";
+    List<String> dated = new ArrayList<>();
+    for (String name : names) {
+      if (name.startsWith(prefix)
+          && name.endsWith(suffix)
+          && stampOf(name, prefix, suffix) != null) {
+        dated.add(name);
       }
     }
-    log.info("Pruned {} old campaign backup(s), keeping {}", toDelete, backupsToKeep);
+    // The stamps sort chronologically as text, so this orders oldest first without touching the
+    // filesystem's modification times, which a copy or a restore can rewrite.
+    dated.sort(null);
+
+    Set<String> keep = new HashSet<>();
+    for (int i = Math.max(0, dated.size() - keepRecent); i < dated.size(); i++) {
+      keep.add(dated.get(i));
+    }
+    if (keepDays > 0) {
+      LocalDate oldestDay = today.minusDays(keepDays - 1L);
+      Set<LocalDate> daysCovered = new HashSet<>();
+      // Newest first, so the first backup seen for a day is that day's newest.
+      for (int i = dated.size() - 1; i >= 0; i--) {
+        LocalDate day = stampOf(dated.get(i), prefix, suffix).toLocalDate();
+        if (!day.isBefore(oldestDay) && daysCovered.add(day)) {
+          keep.add(dated.get(i));
+        }
+      }
+    }
+
+    List<String> delete = new ArrayList<>();
+    for (String name : dated) {
+      if (!keep.contains(name)) {
+        delete.add(name);
+      }
+    }
+    return delete;
+  }
+
+  private static LocalDateTime stampOf(String name, String prefix, String suffix) {
+    if (name.length() != prefix.length() + STAMP_PATTERN.length() + suffix.length()) {
+      return null;
+    }
+    try {
+      return LocalDateTime.parse(
+          name.substring(prefix.length(), name.length() - suffix.length()), STAMP);
+    } catch (DateTimeParseException e) {
+      return null;
+    }
   }
 }
