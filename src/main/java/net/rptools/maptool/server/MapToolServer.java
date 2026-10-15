@@ -355,6 +355,14 @@ public class MapToolServer {
       campaign = new Campaign();
     }
     this.campaign = campaign;
+    if (MapTool.isHeadless()) {
+      // Model code finds the campaign through MapTool.getCampaign(), which asks the background
+      // client; a zone's initiative list, for one, finds its zone that way. HeadlessServer points
+      // that client at the campaign it starts with. When a GM loads another campaign, point it at
+      // the new one too, or such lookups keep finding the old campaign: initiative changes in the
+      // loaded campaign were silently dropped.
+      MapTool.getClient().setCampaign(campaign);
+    }
   }
 
   /**
