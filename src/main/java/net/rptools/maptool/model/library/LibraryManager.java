@@ -27,6 +27,8 @@ import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolMacroContext;
 import net.rptools.maptool.client.macro.MacroLocation;
 import net.rptools.maptool.events.MapToolEventBus;
+import net.rptools.maptool.model.Asset;
+import net.rptools.maptool.model.AssetManager;
 import net.rptools.maptool.model.library.addon.AddOnLibrary;
 import net.rptools.maptool.model.library.addon.AddOnLibraryData;
 import net.rptools.maptool.model.library.addon.AddOnLibraryManager;
@@ -184,6 +186,29 @@ public class LibraryManager {
   }
 
   /**
+   * Tell the server about an add-on library added here.
+   *
+   * <p>The message names the library by its asset key only. A GM who hosts the game shares the
+   * asset manager with the server, so that is enough there. Any other server has never seen the
+   * library file and has no way to ask this client for it, so it could not register the library or
+   * hand it to other players: send the file first, as {@code setBoard} does for a board image.
+   *
+   * @param addOn the library to publish
+   */
+  private static void publishAddOnLibrary(AddOnLibrary addOn)
+      throws ExecutionException, InterruptedException {
+    if (!MapTool.isHostingServer()) {
+      Asset asset = AssetManager.getAsset(addOn.getAssetKey());
+      if (asset != null) {
+        MapTool.serverCommand().putAsset(asset);
+      } else {
+        log.warn("Add-on library {} has no asset here to send to the server", addOn.getAssetKey());
+      }
+    }
+    MapTool.serverCommand().addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOn)));
+  }
+
+  /**
    * Register and add-on library.
    *
    * @param addOn the Add On to register.
@@ -192,7 +217,7 @@ public class LibraryManager {
     try {
       addOnLibraryManager.registerLibrary(addOn);
       if (publishesAddOnChanges()) {
-        MapTool.serverCommand().addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOn)));
+        publishAddOnLibrary(addOn);
       }
     } catch (ExecutionException | InterruptedException | IllegalStateException e) {
       log.error("Error registering add-on in library", e);
@@ -234,8 +259,7 @@ public class LibraryManager {
     }
     if (publishesAddOnChanges()) {
       try {
-        MapTool.serverCommand()
-            .addAddOnLibrary(List.of(new TransferableAddOnLibrary(addOnLibrary)));
+        publishAddOnLibrary(addOnLibrary);
       } catch (InterruptedException | ExecutionException e) {
         log.error("Error publishing add-on library to the server", e);
         return false;
