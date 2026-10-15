@@ -83,6 +83,21 @@ five minutes accumulated 3,800 backups totalling 50GB.
 To restore one, stop the server, copy the backup over the save file, and start
 it again.
 
+**Changing the campaign.** MapTool only offers *Open Campaign* to a client that
+hosts the game or plays alone, so a GM connected to this server cannot load a
+campaign from their own computer. Switch campaigns on the server instead:
+
+1. Stop the server. It writes a final save on the way down.
+2. Keep a copy of that save under another name if you want the current
+   campaign back later; nothing else keeps its final state.
+3. Copy the campaign you want over the save file (`MAPTOOL_SAVE`, which the
+   service also loads through `MAPTOOL_CAMPAIGN`).
+4. Start the server. Its startup copy is now of the new campaign.
+
+*New Campaign* is different: any GM can use it while connected, and it replaces
+the campaign on the server with a blank one. Recover from that with a backup as
+above.
+
 ### Server policy
 
 A GUI server is configured through the start-server dialog, which this does not
@@ -161,8 +176,6 @@ if it loops.
   `MAPTOOL_BACKUPS_TO_KEEP` and `MAPTOOL_DAILY_BACKUPS`. The campaign is copied on the model thread and the
   copy is written off it, matching what `AutoSaveManager` does in the client.
 - **A clean startup logs no stack traces.** If one appears, something regressed.
-- `getTokenInitiative: index = -1` lines at ERROR level during startup are
-  upstream noise: that is how its own code asks "is there a current token?".
 
 ## Add-on libraries
 
