@@ -779,6 +779,22 @@ class HeadlessServerEndToEndTest {
     assertNoErrorsLogged("the run after the restart");
   }
 
+  /**
+   * A server that cannot start must exit and say why, rather than keep running without listening.
+   * Per-player passwords with no password file is one such case: nobody could ever log in.
+   */
+  @Test
+  void aServerThatCannotStartExitsAndSaysWhy() throws Exception {
+    var exited =
+        HeadlessServerProcess.startExpectingFailure(
+            home, "no-password-file", Map.of("maptool.passwordFile", "true"));
+    assertEquals(1, exited.exitCode(), exited.output());
+    assertTrue(
+        exited.output().contains("The headless server could not start")
+            && exited.output().contains("passwords_add.json"),
+        exited.output());
+  }
+
   private void assertPerPlayerLogins(int port) throws Exception {
     String version = HeadlessServerProcess.VERSION;
     // A password only opens its own player's login.

@@ -61,7 +61,20 @@ import org.apache.logging.log4j.Logger;
 public class HeadlessServer {
   private static final String POLICY_PREFIX = "maptool.policy.";
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) {
+    try {
+      run();
+    } catch (Throwable t) {
+      // A failed start must end the process. Threads started on the way keep the JVM alive after
+      // main() throws, and a server process that is running but not listening looks healthy to
+      // the service manager, which would then neither restart it nor report it failed.
+      LogManager.getLogger(HeadlessServer.class).fatal("The headless server could not start", t);
+      LogManager.shutdown();
+      System.exit(1);
+    }
+  }
+
+  private static void run() throws Exception {
     System.setProperty("java.awt.headless", "true");
     // Log4j normally stops itself from a shutdown hook of its own. Shutdown hooks run in no set
     // order, so that could happen before the hook below had written the final save, and the save's

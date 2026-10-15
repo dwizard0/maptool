@@ -75,6 +75,36 @@ final class HeadlessServerProcess {
    */
   static HeadlessServerProcess start(Path home, String name, Map<String, String> properties)
       throws IOException, InterruptedException {
+    var server = launch(home, name, properties);
+    server.awaitListening();
+    return server;
+  }
+
+  /**
+   * Start a server that is expected not to start, and wait for it to exit.
+   *
+   * @return the exit code and everything the server wrote, or a failed test if it is still running
+   *     after the start timeout
+   */
+  static Exited startExpectingFailure(Path home, String name, Map<String, String> properties)
+      throws IOException, InterruptedException {
+    var server = launch(home, name, properties);
+    if (!server.process.waitFor(START_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+      server.process.destroyForcibly();
+      fail(
+          "The server neither started nor exited within "
+              + START_TIMEOUT
+              + ":\n"
+              + server.output());
+    }
+    return new Exited(server.process.exitValue(), server.output());
+  }
+
+  /** How a server that did not start ended. */
+  record Exited(int exitCode, String output) {}
+
+  private static HeadlessServerProcess launch(
+      Path home, String name, Map<String, String> properties) throws IOException {
     String classpath = System.getProperty("maptool.e2e.classpath");
     if (classpath == null || classpath.isBlank()) {
       fail("maptool.e2e.classpath is not set; run this test with ./gradlew headlessEndToEndTest");
@@ -107,9 +137,7 @@ final class HeadlessServerProcess {
             .redirectErrorStream(true)
             .redirectOutput(output.toFile())
             .start();
-    var server = new HeadlessServerProcess(process, output, port);
-    server.awaitListening();
-    return server;
+    return new HeadlessServerProcess(process, output, port);
   }
 
   private static int freePort() throws IOException {
