@@ -57,6 +57,7 @@ Configuration is entirely environmental.
 | `MAPTOOL_NAME` | MapTool Headless | server name |
 | `MAPTOOL_GM_PASSWORD` | gm | GM password |
 | `MAPTOOL_PLAYER_PASSWORD` | player | player password |
+| `MAPTOOL_PASSWORD_FILE` | false | per-player passwords instead of the two shared ones; see below |
 | `MAPTOOL_CAMPAIGN` | (none) | campaign to load; a basic campaign if unset |
 | `MAPTOOL_SAVE` | `<apphome>/server/campaign.cmpgn` | where autosave writes |
 | `MAPTOOL_AUTOSAVE_MINUTES` | 5 | how often to check for changes and save; 0 disables |
@@ -97,6 +98,37 @@ campaign from their own computer. Switch campaigns on the server instead:
 *New Campaign* is different: any GM can use it while connected, and it replaces
 the campaign on the server with a blank one. Recover from that with a backup as
 above.
+
+### Per-player passwords
+
+By default everyone logs in with one of two shared passwords, GM or player, and
+players are told apart only by the name they type, so anyone with the player
+password can join under another player's name. Set `MAPTOOL_PASSWORD_FILE=true`
+to give each player a password of their own instead. This is the same
+per-player password file MapTool's own servers use when *individual passwords*
+is ticked in the start-server dialog; the shared passwords are then not used.
+
+The file is `config/passwords.json` in the data directory. A GUI host edits it
+in its Player Database dialog; here, put new or changed players in
+`config/passwords_add.json` beside it, with plain-text passwords:
+
+```json
+{"passwords": [
+  {"username": "Dustin", "password": "choose-one", "role": "GM"},
+  {"username": "Alice",  "password": "another-one", "role": "PLAYER"},
+  {"username": "Mallory", "password": "x", "role": "PLAYER", "blocked": "Banned for cheating"}
+]}
+```
+
+At startup the server merges that file into `passwords.json`, stores each
+password hashed with its own salt, and deletes `passwords_add.json`, so no
+plain-text password stays on disk. A name in the additions replaces the same
+name in `passwords.json`. `blocked` refuses that player with the reason shown.
+Changes take effect at the next restart.
+
+The username is what the player types into *Connect to Server*, and the role
+comes from the file: a player cannot become GM by knowing the GM's password.
+If the option is set and neither file exists, the server refuses to start.
 
 ### Server policy
 

@@ -15,6 +15,7 @@
 package net.rptools.maptool.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
@@ -727,6 +728,91 @@ class HeadlessServerEndToEndTest {
             .setNamespace(namespace)
             .setValue(GameDataValueDto.newBuilder().setName("counter").setLongValue(value));
     return Message.newBuilder().setUpdateDataMsg(msg).build();
+  }
+
+  /**
+   * Per-player passwords, as MapTool's own servers offer them: each player logs in with their own
+   * password from {@code passwords.json}, and the shared GM and player passwords are not used. New
+   * players are added through {@code passwords_add.json}, which the server merges in at startup,
+   * hashing the plain-text passwords and deleting the file.
+   */
+  @Test
+  void eachPlayerLogsInWithTheirOwnPassword() throws Exception {
+    Path config = home.resolve("data").resolve("config");
+    Files.createDirectories(config);
+    Path additions = config.resolve("passwords_add.json");
+    Files.writeString(
+        additions,
+        """
+        {"passwords": [
+          {"username": "E2E Keeper", "password": "keeper-secret", "role": "GM"},
+          {"username": "E2E Alice", "password": "alice-secret", "role": "PLAYER"},
+          {"username": "E2E Bob", "password": "bob-secret", "role": "PLAYER"},
+          {"username": "E2E Mallory", "password": "mallory-secret", "role": "PLAYER",
+           "blocked": "E2E test ban"}
+        ]}
+        """);
+    Map<String, String> properties =
+        Map.of("maptool.passwordFile", "true", "maptool.autosaveMinutes", "0");
+
+    var first = start("passwords", properties);
+    assertPerPlayerLogins(first.port());
+    stop(first);
+
+    assertFalse(Files.exists(additions), "the additions file is merged in and deleted");
+    for (String file : List.of("passwords.json", "passwords.json.backup")) {
+      Path stored = config.resolve(file);
+      if (Files.exists(stored)) {
+        String text = Files.readString(stored);
+        for (String secret :
+            List.of("keeper-secret", "alice-secret", "bob-secret", "mallory-secret")) {
+          assertFalse(text.contains(secret), file + " holds a plain-text password");
+        }
+      }
+    }
+    assertNoErrorsLogged("the first run with per-player passwords");
+
+    // After a restart the hashed file alone must do.
+    var second = start("passwords-after-restart", properties);
+    assertPerPlayerLogins(second.port());
+    stop(second);
+    assertNoErrorsLogged("the run after the restart");
+  }
+
+  private void assertPerPlayerLogins(int port) throws Exception {
+    String version = HeadlessServerProcess.VERSION;
+    // A password only opens its own player's login.
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Alice", "bob-secret", version));
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Alice", "keeper-secret", version));
+    // The shared passwords no longer open anything.
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Alice", HeadlessServerProcess.PLAYER_PASSWORD, version));
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Keeper", HeadlessServerProcess.GM_PASSWORD, version));
+    // Nobody gets in under a name that isn't listed.
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Stranger", "alice-secret", version));
+    // A blocked player is told so, even with the right password.
+    assertEquals(
+        "E2E test ban",
+        attempt(port, "E2E Mallory", "mallory-secret", version).outcome().blocked(),
+        "the blocked player is refused with the reason");
+
+    // The role comes from the file, not from which password was used.
+    var keeper = login(port, "E2E Keeper", "keeper-secret");
+    assertEquals(RoleDto.GM, keeper.accepted().getRoleDto(), "E2E Keeper is a GM");
+    var alice = login(port, "E2E Alice", "alice-secret");
+    assertEquals(RoleDto.PLAYER, alice.accepted().getRoleDto(), "E2E Alice is a player");
+    var bob = login(port, "E2E Bob", "bob-secret");
+    assertEquals(RoleDto.PLAYER, bob.accepted().getRoleDto(), "E2E Bob is a player");
+    bob.next(MessageTypeCase.SET_CAMPAIGN_MSG);
   }
 
   // ---- What the GM sends -------------------------------------------------------------------

@@ -56,8 +56,9 @@ final class ProtocolClient implements AutoCloseable, MessageHandler {
   private static final Duration TIMEOUT = Duration.ofSeconds(30);
   private static final SecureRandom RANDOM = new SecureRandom();
 
-  /** How the server answered a login. Exactly one of the two fields is set. */
-  record Outcome(ConnectionSuccessfulMsg accepted, HandshakeResponseCodeMsg rejected) {}
+  /** How the server answered a login. Exactly one of the three fields is set. */
+  record Outcome(
+      ConnectionSuccessfulMsg accepted, HandshakeResponseCodeMsg rejected, String blocked) {}
 
   private final SocketConnection connection;
   private final LocalPlayer player;
@@ -78,7 +79,7 @@ final class ProtocolClient implements AutoCloseable, MessageHandler {
     Outcome result = client.outcome();
     if (result.accepted() == null) {
       client.close();
-      fail(name + " was refused: " + result.rejected());
+      fail(name + " was refused: " + result.rejected() + " " + result.blocked());
     }
     return client;
   }
@@ -124,10 +125,12 @@ final class ProtocolClient implements AutoCloseable, MessageHandler {
         case USE_AUTH_TYPE_MSG -> answer(msg.getUseAuthTypeMsg());
         case CONNECTION_SUCCESSFUL_MSG -> {
           handshakeDone = true;
-          outcome.complete(new Outcome(msg.getConnectionSuccessfulMsg(), null));
+          outcome.complete(new Outcome(msg.getConnectionSuccessfulMsg(), null, null));
         }
         case HANDSHAKE_RESPONSE_CODE_MSG ->
-            outcome.complete(new Outcome(null, msg.getHandshakeResponseCodeMsg()));
+            outcome.complete(new Outcome(null, msg.getHandshakeResponseCodeMsg(), null));
+        case PLAYER_BLOCKED_MSG ->
+            outcome.complete(new Outcome(null, null, msg.getPlayerBlockedMsg().getReason()));
         default ->
             outcome.completeExceptionally(
                 new IllegalStateException("Unexpected handshake message " + msg));

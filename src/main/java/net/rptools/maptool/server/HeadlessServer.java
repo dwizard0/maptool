@@ -16,6 +16,8 @@ package net.rptools.maptool.server;
 
 import java.io.File;
 import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Set;
@@ -34,6 +36,10 @@ import net.rptools.maptool.model.CampaignFactory;
 import net.rptools.maptool.model.library.LibraryManager;
 import net.rptools.maptool.model.library.url.LibraryURLStreamHandler;
 import net.rptools.maptool.model.player.DefaultPlayerDatabase;
+import net.rptools.maptool.model.player.PasswordFilePlayerDatabase;
+import net.rptools.maptool.model.player.Player;
+import net.rptools.maptool.model.player.PlayerDatabaseFactory;
+import net.rptools.maptool.model.player.ServerSidePlayerDatabase;
 import net.rptools.maptool.util.PersistenceUtil;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -116,7 +122,10 @@ public class HeadlessServer {
     MapTool.getClient().setServerPolicy(policy);
     ServerConfig config =
         new ServerConfig("gm", gmPassword, playerPassword, port, serverName, null, false, false);
-    DefaultPlayerDatabase playerDb = new DefaultPlayerDatabase(playerPassword, gmPassword);
+    ServerSidePlayerDatabase playerDb =
+        Boolean.getBoolean("maptool.passwordFile")
+            ? passwordFileDatabase(log)
+            : new DefaultPlayerDatabase(playerPassword, gmPassword);
 
     // The copy below reaches back through MapTool.getCampaign() while it runs: a Zone's
     // InitiativeList holds its zone in a transient field, so after loading from disk it resolves
@@ -175,6 +184,44 @@ public class HeadlessServer {
   }
 
   private HeadlessServer() {}
+
+  /**
+   * The per-player password database MapTool's own servers use when the start-server dialog's
+   * individual passwords option is ticked: {@code passwords.json} in the {@code config} folder of
+   * the data directory, one entry per player with their own password and role. The shared GM and
+   * player passwords are then not used at all.
+   *
+   * <p>A GUI host manages that file through its Player Database dialog. Here it is edited by hand,
+   * or new entries are put in {@code passwords_add.json} beside it: at startup MapTool merges that
+   * file in, hashes any plain-text password, rewrites {@code passwords.json} and deletes the
+   * additions file.
+   *
+   * @param log where to report what was loaded
+   * @return the database, read and ready
+   * @throws IllegalStateException if neither file exists, since then nobody could log in
+   */
+  private static ServerSidePlayerDatabase passwordFileDatabase(Logger log) throws Exception {
+    Path config = AppUtil.getAppHome("config").toPath();
+    Path passwords = config.resolve("passwords.json");
+    Path additions = config.resolve("passwords_add.json");
+    if (!Files.exists(passwords) && !Files.exists(additions)) {
+      throw new IllegalStateException(
+          "maptool.passwordFile is set but neither "
+              + passwords
+              + " nor "
+              + additions
+              + " exists, so nobody could log in");
+    }
+    PasswordFilePlayerDatabase db = PlayerDatabaseFactory.getPasswordFilePlayerDatabase();
+    db.initialize();
+    Set<Player> players = db.getAllPlayers();
+    log.info(
+        "Using per-player passwords from {}: {} player(s), {} of them GM",
+        passwords,
+        players.size(),
+        players.stream().filter(Player::isGM).count());
+    return db;
+  }
 
   /**
    * Build the server policy from system properties.
