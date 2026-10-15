@@ -34,7 +34,12 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -521,6 +526,206 @@ class HeadlessServerEndToEndTest {
             .setType(DATA_TYPE)
             .setNamespace(namespace)
             .setValue(GameDataValueDto.newBuilder().setName(name).setStringValue(value));
+    return Message.newBuilder().setUpdateDataMsg(msg).build();
+  }
+
+  /**
+   * Several players at once, each moving their own token and updating their own game data as fast
+   * as they can, at the same time. Every client must get every other client's changes, in the order
+   * they were made and without losing or repeating any, and never its own back; a player who joins
+   * afterwards, and one who joins after a restart, must see where everything ended up.
+   */
+  @Test
+  void manyPlayersChangingThingsAtOnceAllSeeTheSameResult() throws Exception {
+    final int players = 4;
+    final int moves = 100;
+    final int dataUpdates = moves / 2;
+    Path save = home.resolve("saves").resolve("campaign.cmpgn");
+    Files.createDirectories(save.getParent());
+    Map<String, String> properties =
+        Map.of("maptool.save", save.toString(), "maptool.autosaveMinutes", "0");
+    var first = start("crew", properties);
+    int port = first.port();
+
+    // The GM gives each player a token of their own.
+    var gm = login(port, "E2E GM", HeadlessServerProcess.GM_PASSWORD);
+    GUID zoneId = campaignFrom(gm).getZones().getFirst().getId();
+    Asset image = tokenImage();
+    gm.send(putAsset(image));
+    for (int p = 1; p <= players; p++) {
+      Token token = new Token(crewToken(p), image.getMD5Key());
+      token.addOwner(crewName(p));
+      token.setX(0);
+      token.setY(p * 100);
+      gm.send(putToken(zoneId, token));
+    }
+    awaitJoinerSees(
+        port,
+        "a player who joins after the tokens are placed",
+        joined -> {
+          List<String> missing = new ArrayList<>();
+          Zone zone = joined.campaign().getZone(zoneId);
+          for (int p = 1; p <= players; p++) {
+            if (zone.getTokenByName(crewToken(p)) == null) {
+              missing.add(crewToken(p));
+            }
+          }
+          return missing;
+        });
+
+    List<ProtocolClient> crew = new ArrayList<>();
+    List<Token> tokens = new ArrayList<>();
+    for (int p = 1; p <= players; p++) {
+      var player = login(port, crewName(p), HeadlessServerProcess.PLAYER_PASSWORD);
+      Campaign campaign = campaignFrom(player);
+      crew.add(player);
+      tokens.add(campaign.getZone(zoneId).getTokenByName(crewToken(p)));
+    }
+
+    // Everyone at once.
+    var startLine = new CountDownLatch(1);
+    ExecutorService pool = Executors.newFixedThreadPool(players);
+    try {
+      List<Future<?>> running = new ArrayList<>();
+      for (int p = 0; p < players; p++) {
+        var player = crew.get(p);
+        var token = tokens.get(p);
+        String namespace = crewNamespace(p + 1);
+        running.add(
+            pool.submit(
+                () -> {
+                  startLine.await();
+                  for (int i = 1; i <= moves; i++) {
+                    token.setX(i * 50);
+                    player.send(putToken(zoneId, token));
+                    if (i % 2 == 0) {
+                      player.send(counter(namespace, i / 2));
+                    }
+                  }
+                  return null;
+                }));
+      }
+      startLine.countDown();
+      for (var done : running) {
+        done.get();
+      }
+    } finally {
+      pool.shutdown();
+    }
+
+    // What each client received from the others.
+    for (int r = 0; r <= players; r++) {
+      ProtocolClient receiver = r == 0 ? gm : crew.get(r - 1);
+      String who = r == 0 ? "the GM" : crewName(r);
+      int senders = r == 0 ? players : players - 1;
+      var received =
+          receiver.collect(
+              senders * (moves + dataUpdates),
+              MessageTypeCase.PUT_TOKEN_MSG,
+              MessageTypeCase.UPDATE_DATA_MSG);
+      var extra =
+          receiver.extra(
+              Duration.ofMillis(500),
+              MessageTypeCase.PUT_TOKEN_MSG,
+              MessageTypeCase.UPDATE_DATA_MSG);
+      assertTrue(extra.isEmpty(), who + " got " + extra.size() + " messages too many");
+
+      Map<String, List<Integer>> moved =
+          received.stream()
+              .filter(m -> m.hasPutTokenMsg())
+              .collect(
+                  Collectors.groupingBy(
+                      m -> m.getPutTokenMsg().getToken().getName(),
+                      Collectors.mapping(
+                          m -> m.getPutTokenMsg().getToken().getX(), Collectors.toList())));
+      Map<String, List<Long>> counted =
+          received.stream()
+              .filter(m -> m.hasUpdateDataMsg())
+              .collect(
+                  Collectors.groupingBy(
+                      m -> m.getUpdateDataMsg().getNamespace(),
+                      Collectors.mapping(
+                          m -> m.getUpdateDataMsg().getValue().getLongValue(),
+                          Collectors.toList())));
+      for (int p = 1; p <= players; p++) {
+        if (p == r) {
+          assertTrue(!moved.containsKey(crewToken(p)), who + " was sent their own moves back");
+          assertTrue(!counted.containsKey(crewNamespace(p)), who + " was sent their own data back");
+          continue;
+        }
+        List<Integer> xs = new ArrayList<>();
+        for (int i = 1; i <= moves; i++) {
+          xs.add(i * 50);
+        }
+        assertEquals(xs, moved.get(crewToken(p)), who + " sees " + crewName(p) + "'s moves");
+        List<Long> values = new ArrayList<>();
+        for (long i = 1; i <= dataUpdates; i++) {
+          values.add(i);
+        }
+        assertEquals(
+            values, counted.get(crewNamespace(p)), who + " sees " + crewName(p) + "'s data");
+      }
+    }
+
+    Function<Joined, List<String>> endState =
+        joined -> {
+          List<String> missing = new ArrayList<>();
+          Zone zone = joined.campaign().getZone(zoneId);
+          for (int p = 1; p <= players; p++) {
+            Token token = zone.getTokenByName(crewToken(p));
+            if (token == null || token.getX() != moves * 50) {
+              missing.add(
+                  crewToken(p)
+                      + " at x="
+                      + (moves * 50)
+                      + " (is "
+                      + (token == null ? "gone" : token.getX())
+                      + ")");
+            }
+            GameDataDto data = dataNamespace(joined, crewNamespace(p));
+            if (data == null
+                || data.getValuesList().stream()
+                    .noneMatch(
+                        v -> "counter".equals(v.getName()) && v.getLongValue() == dataUpdates)) {
+              missing.add(crewNamespace(p) + " counter=" + dataUpdates);
+            }
+          }
+          return missing;
+        };
+    awaitJoinerSees(port, "a player who joins afterwards", endState);
+    stop(first);
+    assertNoErrorsLogged("the run with many players");
+
+    var second =
+        start(
+            "crew-after-restart",
+            Map.of(
+                "maptool.campaign", save.toString(),
+                "maptool.save", save.toString(),
+                "maptool.autosaveMinutes", "0"));
+    awaitJoinerSees(second.port(), "a player who joins after a restart", endState);
+    stop(second);
+    assertNoErrorsLogged("the run after the restart");
+  }
+
+  private static String crewName(int p) {
+    return "E2E Crew " + p;
+  }
+
+  private static String crewToken(int p) {
+    return "E2E Crew Token " + p;
+  }
+
+  private static String crewNamespace(int p) {
+    return "crew-" + p;
+  }
+
+  private static Message counter(String namespace, long value) {
+    var msg =
+        UpdateDataMsg.newBuilder()
+            .setType(DATA_TYPE)
+            .setNamespace(namespace)
+            .setValue(GameDataValueDto.newBuilder().setName("counter").setLongValue(value));
     return Message.newBuilder().setUpdateDataMsg(msg).build();
   }
 

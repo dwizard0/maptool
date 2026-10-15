@@ -20,6 +20,8 @@ import com.google.protobuf.ByteString;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletableFuture;
@@ -195,6 +197,55 @@ final class ProtocolClient implements AutoCloseable, MessageHandler {
         return msg;
       }
     }
+  }
+
+  /**
+   * Collect the next {@code count} messages of any of the given types, skipping others.
+   *
+   * @param count how many to collect
+   * @param types the message types to collect
+   * @return the messages, in the order they arrived
+   */
+  List<Message> collect(int count, Message.MessageTypeCase... types) throws InterruptedException {
+    var wanted = Set.of(types);
+    List<Message> collected = new ArrayList<>(count);
+    long deadline = System.nanoTime() + TIMEOUT.toNanos();
+    while (collected.size() < count) {
+      long left = deadline - System.nanoTime();
+      Message msg = left > 0 ? messages.poll(left, TimeUnit.NANOSECONDS) : null;
+      if (msg == null) {
+        throw new AssertionError(
+            player.getName()
+                + ": got "
+                + collected.size()
+                + " of "
+                + count
+                + " "
+                + wanted
+                + " within "
+                + TIMEOUT);
+      }
+      if (wanted.contains(msg.getMessageTypeCase())) {
+        collected.add(msg);
+      }
+    }
+    return collected;
+  }
+
+  /**
+   * Wait a moment and return whatever else of the given types has arrived meanwhile, to catch
+   * messages that should not have been sent at all.
+   */
+  List<Message> extra(Duration wait, Message.MessageTypeCase... types) throws InterruptedException {
+    var wanted = Set.of(types);
+    Thread.sleep(wait.toMillis());
+    List<Message> extra = new ArrayList<>();
+    for (Message msg; (msg = messages.poll()) != null; ) {
+      if (wanted.contains(msg.getMessageTypeCase())) {
+        extra.add(msg);
+      }
+    }
+    return extra;
   }
 
   @Override
