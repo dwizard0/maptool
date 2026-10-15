@@ -57,6 +57,13 @@ public class ZoneFactory {
           Asset.createImageAsset(DEFAULT_MAP_NAME, FileUtils.readFileToByteArray(grassImage));
       imageId = asset.getMD5Key();
 
+      // The texture is read straight from the file, so hand it to the asset manager before waiting
+      // for it. Otherwise the wait depends on the image index that AppSetup builds in the
+      // background: on the first run, before that index has reached this file, the asset is
+      // requested from the server instead, and with no server to answer (a headless server
+      // creating its first campaign) the wait below never ends.
+      AssetManager.putAsset(asset);
+
       // Make sure the image is loaded to avoid a flash screen when it becomes visible
       ImageManager.getImageAndWait(asset.getMD5Key());
     } catch (IOException ioe) {
