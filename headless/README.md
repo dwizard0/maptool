@@ -29,6 +29,20 @@ The launcher also passes `--add-opens` flags that XStream needs. Without
 Collections$SynchronizedMap". Keep that list in sync with `build.gradle`'s
 `modulesToOpen`.
 
+## Test
+
+```
+./gradlew headlessEndToEndTest
+```
+
+Starts real server processes, each in its own temporary home and data
+directory (nothing touches your own MapTool data), and talks to them the way
+MapTool clients do: logins and refusals, a campaign built over the wire reaching
+connected and late-joining players, the final save on stop, and a restart from
+that save. It takes about 15 seconds and is not part of `./gradlew test`. Each
+test's server output and logs are kept in `build/headless-e2e/` for a look after
+a failure.
+
 ## Run
 
 ```

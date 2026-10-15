@@ -529,3 +529,24 @@ tasks.register("headlessClasspath") {
         println "headless classpath entries: " + sourceSets.main.runtimeClasspath.files.size()
     }
 }
+
+// The headless server end-to-end test starts real server processes, so it is kept out of the
+// ordinary test run. Run it on its own with: ./gradlew headlessEndToEndTest
+test {
+    useJUnitPlatform {
+        excludeTags 'headless-e2e'
+    }
+}
+
+tasks.register('headlessEndToEndTest', Test) {
+    description = 'Runs the headless server end to end: server processes, real clients, restarts.'
+    group = 'verification'
+    testClassesDirs = sourceSets.test.output.classesDirs
+    classpath = sourceSets.test.runtimeClasspath
+    useJUnitPlatform {
+        includeTags 'headless-e2e'
+    }
+    // The servers run from the main classpath, as the launcher runs them.
+    jvmArgumentProviders.add({ ["-Dmaptool.e2e.classpath=" + sourceSets.main.runtimeClasspath.asPath] } as CommandLineArgumentProvider)
+    shouldRunAfter tasks.named('test')
+}
