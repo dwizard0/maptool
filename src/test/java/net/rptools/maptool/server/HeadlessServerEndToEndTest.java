@@ -25,6 +25,7 @@ import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -33,7 +34,10 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 import javax.imageio.ImageIO;
 import net.rptools.lib.MD5Key;
 import net.rptools.maptool.client.ui.token.ColorDotTokenOverlay;
@@ -41,6 +45,8 @@ import net.rptools.maptool.model.Asset;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.CampaignProperties;
 import net.rptools.maptool.model.GUID;
+import net.rptools.maptool.model.Grid;
+import net.rptools.maptool.model.GridFactory;
 import net.rptools.maptool.model.MacroButtonProperties;
 import net.rptools.maptool.model.ShapeType;
 import net.rptools.maptool.model.SightType;
@@ -48,22 +54,33 @@ import net.rptools.maptool.model.Sights;
 import net.rptools.maptool.model.Token;
 import net.rptools.maptool.model.Zone;
 import net.rptools.maptool.model.drawing.AbstractTemplate.Quadrant;
+import net.rptools.maptool.model.drawing.DrawableColorPaint;
 import net.rptools.maptool.model.gamedata.proto.DataStoreDto;
 import net.rptools.maptool.model.gamedata.proto.GameDataDto;
 import net.rptools.maptool.model.gamedata.proto.GameDataValueDto;
+import net.rptools.maptool.model.library.proto.AddOnLibraryListDto;
+import net.rptools.maptool.server.proto.AddAddOnLibraryMsg;
+import net.rptools.maptool.server.proto.ConnectionSuccessfulMsg;
 import net.rptools.maptool.server.proto.ExposeFowMsg;
 import net.rptools.maptool.server.proto.GetAssetMsg;
 import net.rptools.maptool.server.proto.HandshakeResponseCodeMsg;
+import net.rptools.maptool.server.proto.InitiativeListDto;
 import net.rptools.maptool.server.proto.Message;
 import net.rptools.maptool.server.proto.Message.MessageTypeCase;
 import net.rptools.maptool.server.proto.PutAssetMsg;
 import net.rptools.maptool.server.proto.PutTokenMsg;
+import net.rptools.maptool.server.proto.RemoveAllAddOnLibrariesMsg;
+import net.rptools.maptool.server.proto.RemoveDataStoreMsg;
 import net.rptools.maptool.server.proto.RoleDto;
+import net.rptools.maptool.server.proto.SetCampaignMsg;
 import net.rptools.maptool.server.proto.SetVisionTypeMsg;
+import net.rptools.maptool.server.proto.TokenInitiativeDto;
+import net.rptools.maptool.server.proto.TransferableAddOnLibraryDto;
 import net.rptools.maptool.server.proto.UpdateCampaignMacrosMsg;
 import net.rptools.maptool.server.proto.UpdateCampaignMsg;
 import net.rptools.maptool.server.proto.UpdateDataMsg;
 import net.rptools.maptool.server.proto.UpdateDataNamespaceMsg;
+import net.rptools.maptool.server.proto.UpdateInitiativeMsg;
 import net.rptools.maptool.server.proto.ZoneDto;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
@@ -97,6 +114,16 @@ class HeadlessServerEndToEndTest {
   private static final String DATA_NAMESPACE = "test";
   private static final Area EXPOSED = new Area(new Rectangle(0, 0, 500, 500));
   private static final Duration SETTLE_TIMEOUT = Duration.ofSeconds(20);
+
+  // The campaign a GM loads onto the running server, and what the running one had before it.
+  private static final String RUNNING_LIBRARY = "net.e2e.running";
+  private static final String RUNNING_NAMESPACE = "running";
+  private static final String LOADED_LIBRARY = "net.e2e.loaded";
+  private static final String LOADED_NAMESPACE = "loaded";
+  private static final String LOADED_MAP = "E2E Loaded Map";
+  private static final String HERO_NAME = "E2E Hero";
+  private static final String LOADED_STATE = "E2E Loaded State";
+  private static final String LOADED_MACRO = "E2E Loaded Macro";
 
   @TempDir Path home;
 
@@ -262,6 +289,241 @@ class HeadlessServerEndToEndTest {
     stop(server);
   }
 
+  /**
+   * A GM opens a campaign file on their own computer while connected to the server. Their client
+   * sends what it always sends for that, in this order: the images their client had not seen
+   * before, then it clears the game data and the add-on libraries, sends the campaign's own game
+   * data and libraries, and finally the campaign itself. Everyone, including players who join later
+   * or after a restart, must then have the loaded campaign and nothing of the one it replaced.
+   */
+  @Test
+  void aCampaignAGmLoadsReplacesTheRunningOneForEveryone() throws Exception {
+    Path save = home.resolve("saves").resolve("campaign.cmpgn");
+    Files.createDirectories(save.getParent());
+    Map<String, String> properties =
+        Map.of("maptool.save", save.toString(), "maptool.autosaveMinutes", "0");
+    var first = start("before-and-after-load", properties);
+    int port = first.port();
+
+    var gm = login(port, "E2E GM", HeadlessServerProcess.GM_PASSWORD);
+    Campaign running = campaignFrom(gm);
+    var watcher = login(port, "E2E Watcher", HeadlessServerProcess.PLAYER_PASSWORD);
+    watcher.next(MessageTypeCase.SET_CAMPAIGN_MSG);
+
+    // The running campaign has game data and an add-on library of its own.
+    Asset runningLibrary = addOnLibrary(RUNNING_LIBRARY);
+    gm.send(putAsset(runningLibrary));
+    gm.send(addAddOnLibrary(RUNNING_LIBRARY, runningLibrary));
+    gm.send(namespace(RUNNING_NAMESPACE));
+    gm.send(value(RUNNING_NAMESPACE, "greeting", "running"));
+    awaitJoinerSees(
+        port,
+        "a player who joins before the load",
+        joined -> {
+          List<String> missing = new ArrayList<>();
+          if (!hasLibrary(joined, RUNNING_LIBRARY)) {
+            missing.add("add-on library " + RUNNING_LIBRARY);
+          }
+          if (dataNamespace(joined, RUNNING_NAMESPACE) == null) {
+            missing.add("game data namespace " + RUNNING_NAMESPACE);
+          }
+          return missing;
+        });
+
+    // The GM opens a campaign file.
+    Asset image = tokenImage();
+    Asset loadedLibrary = addOnLibrary(LOADED_LIBRARY);
+    Campaign loaded = loadedCampaign(image);
+    Zone map = loaded.getZones().getFirst();
+    Token hero = map.getTokenByName(HERO_NAME);
+    gm.send(putAsset(image));
+    gm.send(Message.newBuilder().setRemoveDataStoreMsg(RemoveDataStoreMsg.newBuilder()).build());
+    gm.send(
+        Message.newBuilder()
+            .setRemoveAllAddOnLibrariesMsg(RemoveAllAddOnLibrariesMsg.newBuilder())
+            .build());
+    gm.send(namespace(LOADED_NAMESPACE));
+    gm.send(value(LOADED_NAMESPACE, "greeting", "loaded"));
+    // The library comes out of the campaign file into the GM's client, which sends the file just
+    // before announcing the library: the server cannot ask for it.
+    gm.send(putAsset(loadedLibrary));
+    gm.send(addAddOnLibrary(LOADED_LIBRARY, loadedLibrary));
+    gm.send(
+        Message.newBuilder()
+            .setSetCampaignMsg(SetCampaignMsg.newBuilder().setCampaign(loaded.toDto()))
+            .build());
+
+    // Play goes on in the loaded campaign: the GM puts the hero into the initiative order.
+    var initiative =
+        InitiativeListDto.newBuilder()
+            .setZoneId(map.getId().toString())
+            .setCurrent(-1)
+            .addTokens(TokenInitiativeDto.newBuilder().setTokenId(hero.getId().toString()));
+    gm.send(
+        Message.newBuilder()
+            .setUpdateInitiativeMsg(UpdateInitiativeMsg.newBuilder().setList(initiative))
+            .build());
+
+    var relayed = watcher.next(MessageTypeCase.SET_CAMPAIGN_MSG).getSetCampaignMsg();
+    assertEquals(
+        LOADED_MAP,
+        Campaign.fromDto(relayed.getCampaign()).getZones().getFirst().getName(),
+        "the connected player is sent the loaded campaign");
+
+    Function<Joined, List<String>> loadedMissing =
+        joined -> missingFromLoaded(joined, running, map, hero);
+    awaitJoinerSees(port, "a player who joins after the load", loadedMissing);
+    assertServerSendsTheImage(port, image, "a player who joins after the load");
+
+    stop(first);
+    assertNoErrorsLogged("the run with the load");
+
+    var second =
+        start(
+            "after-restart",
+            Map.of(
+                "maptool.campaign", save.toString(),
+                "maptool.save", save.toString(),
+                "maptool.autosaveMinutes", "0"));
+    awaitJoinerSees(second.port(), "a player who joins after a restart", loadedMissing);
+    assertServerSendsTheImage(second.port(), image, "a player who joins after a restart");
+    stop(second);
+    assertNoErrorsLogged("the run after the restart");
+  }
+
+  /** The campaign in the file the GM opens: one map with a token on it, and its own settings. */
+  private static Campaign loadedCampaign(Asset image) {
+    Campaign campaign = new Campaign();
+    campaign.setName("E2E Loaded Campaign");
+    Zone map = new Zone();
+    map.setName(LOADED_MAP);
+    map.setGrid(GridFactory.createGrid(Grid.GridType.Square));
+    map.setBackgroundPaint(new DrawableColorPaint(Color.DARK_GRAY));
+    map.setFogPaint(new DrawableColorPaint(Color.BLACK));
+    Token hero = new Token(HERO_NAME, image.getMD5Key());
+    hero.setX(200);
+    hero.setY(200);
+    map.putToken(hero);
+    campaign.putZone(map);
+    // getCampaignProperties() hands out a copy.
+    CampaignProperties properties = campaign.getCampaignProperties();
+    properties
+        .getTokenStatesMap()
+        .put(LOADED_STATE, new ColorDotTokenOverlay(LOADED_STATE, Color.BLUE, Quadrant.NORTH_WEST));
+    campaign.replaceCampaignProperties(properties);
+    var macro = new MacroButtonProperties(0);
+    macro.setSaveLocation("CampaignPanel");
+    macro.setLabel(LOADED_MACRO);
+    macro.setCommand(MACRO_COMMAND);
+    campaign.setMacroButtonPropertiesArray(new ArrayList<>(List.of(macro)));
+    return campaign;
+  }
+
+  private static List<String> missingFromLoaded(
+      Joined joined, Campaign running, Zone map, Token hero) {
+    List<String> missing = new ArrayList<>();
+    Campaign campaign = joined.campaign();
+    for (Zone zone : running.getZones()) {
+      if (campaign.getZone(zone.getId()) != null) {
+        missing.add("the running campaign's map " + zone.getName() + " to be gone");
+      }
+    }
+    Zone joinedMap = campaign.getZone(map.getId());
+    if (joinedMap == null) {
+      missing.add("map " + LOADED_MAP);
+    } else {
+      if (joinedMap.getToken(hero.getId()) == null) {
+        missing.add("token " + HERO_NAME);
+      }
+      var order = joinedMap.getInitiativeList();
+      if (order.getSize() != 1 || !hero.getId().equals(order.getTokenInitiative(0).getId())) {
+        missing.add("the hero in the initiative order (" + order.getSize() + " entries)");
+      }
+    }
+    if (!campaign.getCampaignProperties().getTokenStatesMap().containsKey(LOADED_STATE)) {
+      missing.add("token state " + LOADED_STATE);
+    }
+    if (campaign.getMacroButtonPropertiesArray().stream()
+        .noneMatch(m -> LOADED_MACRO.equals(m.getLabel()))) {
+      missing.add("campaign macro " + LOADED_MACRO);
+    }
+    if (dataNamespace(joined, RUNNING_NAMESPACE) != null) {
+      missing.add("the running campaign's game data to be gone");
+    }
+    GameDataDto data = dataNamespace(joined, LOADED_NAMESPACE);
+    if (data == null
+        || data.getValuesList().stream()
+            .noneMatch(
+                v -> "greeting".equals(v.getName()) && "loaded".equals(v.getStringValue()))) {
+      missing.add("game data " + LOADED_NAMESPACE + " greeting=loaded");
+    }
+    if (hasLibrary(joined, RUNNING_LIBRARY)) {
+      missing.add("the running campaign's add-on library to be gone");
+    }
+    if (!hasLibrary(joined, LOADED_LIBRARY)) {
+      missing.add("add-on library " + LOADED_LIBRARY);
+    }
+    return missing;
+  }
+
+  private static boolean hasLibrary(Joined joined, String namespace) {
+    return joined.accepted().getAddOnLibraryListDto().getLibrariesList().stream()
+        .map(AddOnLibraryListDto.AddOnLibraryEntryDto::getDetails)
+        .anyMatch(d -> namespace.equals(d.getNamespace()));
+  }
+
+  private static GameDataDto dataNamespace(Joined joined, String namespace) {
+    return joined.accepted().getGameDataDto().getDataList().stream()
+        .filter(d -> DATA_TYPE.equals(d.getType()) && namespace.equals(d.getNamespace()))
+        .findFirst()
+        .orElse(null);
+  }
+
+  /** A minimal add-on library file, as the GM would import or a campaign file would carry. */
+  private static Asset addOnLibrary(String namespace) throws IOException {
+    var bytes = new ByteArrayOutputStream();
+    try (var zip = new ZipOutputStream(bytes)) {
+      zip.putNextEntry(new ZipEntry("library.json"));
+      String info =
+          "{\"name\": \"%s\", \"version\": \"1.0.0\", \"namespace\": \"%s\", \"description\":"
+              + " \"End-to-end test library\"}";
+      zip.write(info.formatted(namespace, namespace).getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+      zip.putNextEntry(new ZipEntry("library/public/readme.txt"));
+      zip.write("End-to-end test".getBytes(StandardCharsets.UTF_8));
+      zip.closeEntry();
+    }
+    return Asset.Type.MTLIB.getFactory().apply(namespace, bytes.toByteArray());
+  }
+
+  private static Message addAddOnLibrary(String namespace, Asset library) {
+    var lib =
+        TransferableAddOnLibraryDto.newBuilder()
+            .setNamespace(namespace)
+            .setVersion("1.0.0")
+            .setAssetKey(library.getMD5Key().toString());
+    return Message.newBuilder()
+        .setAddAddOnLibraryMsg(AddAddOnLibraryMsg.newBuilder().addAddOns(lib))
+        .build();
+  }
+
+  /** A client creating a namespace sends it empty, then each value on its own. */
+  private static Message namespace(String namespace) {
+    var data = GameDataDto.newBuilder().setType(DATA_TYPE).setNamespace(namespace);
+    return Message.newBuilder()
+        .setUpdateDataNamespaceMsg(UpdateDataNamespaceMsg.newBuilder().setData(data))
+        .build();
+  }
+
+  private static Message value(String namespace, String name, String value) {
+    var msg =
+        UpdateDataMsg.newBuilder()
+            .setType(DATA_TYPE)
+            .setNamespace(namespace)
+            .setValue(GameDataValueDto.newBuilder().setName(name).setStringValue(value));
+    return Message.newBuilder().setUpdateDataMsg(msg).build();
+  }
+
   // ---- What the GM sends -------------------------------------------------------------------
 
   private static Message visionDay(GUID zoneId) {
@@ -359,19 +621,31 @@ class HeadlessServerEndToEndTest {
    * notices the previous connection has gone.
    */
   private void awaitLateJoinerSeesEverything(int port, String who) throws Exception {
+    awaitJoinerSees(
+        port, who, joined -> missing(joined.campaign(), joined.accepted().getGameDataDto()));
+  }
+
+  /** What a player gets on joining: the handshake's game data and libraries, and the campaign. */
+  private record Joined(ConnectionSuccessfulMsg accepted, Campaign campaign) {}
+
+  /**
+   * Log in new players until one sees what {@code missing} asks for, and fail with what is still
+   * missing if none does in time.
+   */
+  private void awaitJoinerSees(int port, String who, Function<Joined, List<String>> missing)
+      throws Exception {
     long deadline = System.nanoTime() + SETTLE_TIMEOUT.toNanos();
-    List<String> missing;
+    List<String> stillMissing;
     do {
       var joiner = login(port, "E2E Joiner " + ++joiners, HeadlessServerProcess.PLAYER_PASSWORD);
-      Campaign campaign = campaignFrom(joiner);
-      missing = missing(campaign, joiner.accepted().getGameDataDto());
+      stillMissing = missing.apply(new Joined(joiner.accepted(), campaignFrom(joiner)));
       joiner.close();
-      if (missing.isEmpty()) {
+      if (stillMissing.isEmpty()) {
         return;
       }
       Thread.sleep(250);
     } while (System.nanoTime() < deadline);
-    fail(who + " is missing: " + String.join("; ", missing));
+    fail(who + " is missing: " + String.join("; ", stillMissing));
   }
 
   /**
