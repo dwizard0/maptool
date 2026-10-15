@@ -57,6 +57,11 @@ public class HeadlessServer {
 
   public static void main(String[] args) throws Exception {
     System.setProperty("java.awt.headless", "true");
+    // Log4j normally stops itself from a shutdown hook of its own. Shutdown hooks run in no set
+    // order, so that could happen before the hook below had written the final save, and the save's
+    // messages -- including any error from it -- were lost. The hook below stops Log4j instead,
+    // once the save is done. Like the logging setup, this must happen before the first Logger.
+    System.setProperty("log4j2.shutdownHookEnabled", "false");
     // Must happen before any Logger is created, or log4j2.xml resolves ${sys:MAPTOOL_LOGDIR}
     // to a directory literally named that.
     AppUtil.initLogging();
@@ -157,6 +162,8 @@ public class HeadlessServer {
                   log.info("Stopping headless server");
                   persister.shutdown();
                   server.stop();
+                  log.info("Headless server stopped");
+                  LogManager.shutdown();
                 }));
 
     server.start();
