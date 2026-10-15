@@ -709,10 +709,11 @@ public class ServerMessageHandler implements MessageHandler {
   }
 
   private void handle(PutAssetMsg msg) {
-    ModelThread.invokeLater(
-        () -> {
-          AssetManager.putAsset(Asset.fromDto(msg.getAsset()));
-        });
+    // Stored at once, not on the model thread: a client sends an asset just before the message
+    // that refers to it (an add-on library, a board, a game data value), and the handler for that
+    // message looks the asset up straight away. Queued, the asset could arrive after the lookup
+    // had already given up on it.
+    AssetManager.putAsset(Asset.fromDto(msg.getAsset()));
   }
 
   private void handle(HideFowMsg msg) {
