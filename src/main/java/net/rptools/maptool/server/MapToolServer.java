@@ -48,6 +48,7 @@ import net.rptools.maptool.model.TextMessage;
 import net.rptools.maptool.model.player.Player;
 import net.rptools.maptool.model.player.ServerSidePlayerDatabase;
 import net.rptools.maptool.server.proto.Message;
+import net.rptools.maptool.server.proto.MessageMsg;
 import net.rptools.maptool.server.proto.PlayerConnectedMsg;
 import net.rptools.maptool.server.proto.PlayerDisconnectedMsg;
 import net.rptools.maptool.server.proto.SetCampaignMsg;
@@ -475,6 +476,17 @@ public class MapToolServer {
         if (result == MapToolRegistry.RegisterResponse.NAME_EXISTS) {
           MapTool.showError("msg.error.alreadyRegistered");
         } else {
+          if (result == MapToolRegistry.RegisterResponse.OK) {
+            log.info(
+                "Registered with the RPTools server list as \"{}\" on port {}",
+                config.getServerName(),
+                port);
+          } else {
+            // Not shown to anyone otherwise: the server simply never appears in the list.
+            log.warn(
+                "Could not register with the RPTools server list as \"{}\"",
+                config.getServerName());
+          }
           heartbeatThread = new HeartbeatThread(port);
           heartbeatThread.start();
         }
@@ -550,13 +562,17 @@ public class MapToolServer {
           // If the heartbeat worked, reset the counter if the last one failed
           if (errors != 0) {
             String msg = I18N.getText("msg.info.heartbeat.registrySuccess", errors);
-            ModelThread.invokeLater(
-                () -> {
-                  // Write to the GM's console. (Code taken from client.functions.ChatFunction)
-                  MapTool.serverCommand().message(TextMessage.gm(null, msg));
-                  // Write to our console. (Code taken from client.functions.ChatFunction)
-                  MapTool.addServerMessage(TextMessage.me(null, msg));
-                });
+            if (MapTool.isHeadless()) {
+              tellGmsHeadless(msg, null);
+            } else {
+              ModelThread.invokeLater(
+                  () -> {
+                    // Write to the GM's console. (Code taken from client.functions.ChatFunction)
+                    MapTool.serverCommand().message(TextMessage.gm(null, msg));
+                    // Write to our console. (Code taken from client.functions.ChatFunction)
+                    MapTool.addServerMessage(TextMessage.me(null, msg));
+                  });
+            }
             errors = 0;
             WARNING_TIME = 2;
           }
@@ -579,6 +595,10 @@ public class MapToolServer {
             // We use a linear backoff so we don't inundate the user with popups!
 
             String msg = I18N.getText("msg.info.heartbeat.registryFailure", IP_addr, port, errors);
+            if (MapTool.isHeadless()) {
+              tellGmsHeadless(msg, e);
+              continue;
+            }
             ModelThread.invokeLater(
                 () -> {
                   // Write to the GM's console. (Code taken from client.functions.ChatFunction)
@@ -603,6 +623,25 @@ public class MapToolServer {
     public void shutdown() {
       stop = true;
       interrupt();
+    }
+
+    /**
+     * Report the state of the server list registration on a server with no window. A GUI host
+     * writes it to its own chat and the first failure also opens a dialog; a headless server has
+     * neither, and its background client is not connected, so sending through it reaches nobody.
+     * Log it, and send it to the connected GMs directly.
+     *
+     * @param msg the message
+     * @param failure the error, or null when registration has recovered
+     */
+    private void tellGmsHeadless(String msg, @Nullable Exception failure) {
+      if (failure == null) {
+        log.info(msg);
+      } else {
+        log.warn(msg, failure);
+      }
+      var chat = MessageMsg.newBuilder().setMessage(TextMessage.gm(null, msg).toDto());
+      broadcastMessage(Message.newBuilder().setMessageMsg(chat).build());
     }
   }
 
