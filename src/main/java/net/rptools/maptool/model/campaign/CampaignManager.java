@@ -28,10 +28,6 @@ import net.rptools.maptool.model.library.LibraryManager;
 public class CampaignManager {
 
   /**
-   * Clears campaign data that is not stored in the {@link Campaign} object. This is called when a
-   * campaign is about to be loaded, sent from the server, or a new campaign is created.
-   */
-  /**
    * Discards the campaign data this client holds, and tells the server to discard its copy.
    *
    * <p>Use this when the campaign in a running game is being replaced, such as opening another
@@ -61,7 +57,10 @@ public class CampaignManager {
     UserDefinedMacroFunctions.getInstance().clearUserDefinedFunctions();
     MacroManager.removeCampaignAliases();
 
-    MapTool.getFrame().getOverlayPanel().removeAllOverlays();
-    MapTool.getFrame().getLookupTablePanel().reset();
+    // A headless server has no window, so there is no UI to clear.
+    if (!MapTool.isHeadless()) {
+      MapTool.getFrame().getOverlayPanel().removeAllOverlays();
+      MapTool.getFrame().getLookupTablePanel().reset();
+    }
   }
 }
