@@ -70,6 +70,14 @@ Configuration is entirely environmental.
 | `MAPTOOL_JVM_OPTS` | (none) | extra JVM flags, e.g. `-Dmaptool.version=...` |
 | `MAPTOOL_SKIP_VERSION_CHECK` | false | accept any client version (sets `RUN_FROM_IDE`) |
 
+**Memory.** The server holds the whole campaign, including every add-on's
+game data, and builds a copy of it for each client that joins. 2G is plenty
+for most frameworks, but large ones need more: the Pathfinder 2e framework
+(`ca.pz2e`) keeps its compendium as game data and used about 950MB on its
+own, so with a few players joining at once it ran a 1G server out of memory.
+Give a server running a framework that size `MAPTOOL_HEAP=4G`. If the log
+shows `OutOfMemoryError`, raise it and restart.
+
 **Saves and backups.** Every five minutes the server saves the campaign, but
 only if a client has changed something since the last save; an idle server
 still saves once an hour as a safety net, and always on shutdown. Each save
