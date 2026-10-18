@@ -70,6 +70,50 @@ Configuration is entirely environmental.
 | `MAPTOOL_JVM_OPTS` | (none) | extra JVM flags, e.g. `-Dmaptool.version=...` |
 | `MAPTOOL_SKIP_VERSION_CHECK` | false | accept any client version (sets `RUN_FROM_IDE`) |
 
+### Starting from a settings file
+
+Instead of the variables above, the settings can go in a JSON file named on the
+command line with `-headless:<file>`. This works with MapTool's normal launcher
+as well as with the server class, so the same jar or installed MapTool starts
+either the client or a server:
+
+```
+java <JVM options> -cp <classpath> net.rptools.maptool.client.LaunchInstructions -headless:server-settings.json
+```
+
+`headless/server-settings.example.json` shows the format:
+
+```json
+{
+  "port": 51234,
+  "gmPassword": "change-me-gm",
+  "playerPassword": "change-me-player",
+  "campaign": "campaigns/my-game.cmpgn",
+  "save": "campaigns/my-game.cmpgn",
+  "autosaveMinutes": 5,
+  "policy": { "useIndividualViews": true }
+}
+```
+
+- Each key is one of the settings above, named as its `maptool.*` system
+  property without the prefix: `port`, `name`, `register`, `gmPassword`,
+  `playerPassword`, `passwordFile`, `campaign`, `save`, `autosaveMinutes`,
+  `idleSaveMinutes`, `backups`, `backupsToKeep`, `dailyBackups`, `version`.
+  `policy` holds the server policy flags described below.
+- A key the server does not know stops it from starting, and the error lists
+  the valid ones, so a misspelt setting is never silently ignored.
+- Relative `campaign` and `save` paths are relative to the settings file.
+- A setting also given as `-Dmaptool.<key>` keeps the command line's value; the
+  log says which settings came from the file and which were overridden.
+- Heap size and the data directory are JVM options (`-Xmx`,
+  `-DMAPTOOL_DATADIR`), not settings.
+- The file holds passwords: keep it readable only by the account that runs the
+  server.
+
+Not yet tried with an installed MapTool's own launcher (`MapTool.exe`,
+`/opt/maptool/bin/MapTool`); it passes the needed JVM options, so
+`MapTool -headless:<file>` is expected to work there too.
+
 **Memory.** The server holds the whole campaign, including every add-on's
 game data, and builds a copy of it for each client that joins. 2G is plenty
 for most frameworks, but large ones need more: the Pathfinder 2e framework

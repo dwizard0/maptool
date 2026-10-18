@@ -63,7 +63,7 @@ public class HeadlessServer {
 
   public static void main(String[] args) {
     try {
-      run();
+      run(args);
     } catch (Throwable t) {
       // A failed start must end the process. Threads started on the way keep the JVM alive after
       // main() throws, and a server process that is running but not listening looks healthy to
@@ -74,7 +74,10 @@ public class HeadlessServer {
     }
   }
 
-  private static void run() throws Exception {
+  private static void run(String[] args) throws Exception {
+    // Before anything reads a maptool.* property: a settings file named with -headless:<file>
+    // supplies them.
+    HeadlessSettings.applyFromArguments(args);
     System.setProperty("java.awt.headless", "true");
     // Log4j normally stops itself from a shutdown hook of its own. Shutdown hooks run in no set
     // order, so that could happen before the hook below had written the final save, and the save's
@@ -85,6 +88,9 @@ public class HeadlessServer {
     // to a directory literally named that.
     AppUtil.initLogging();
     Logger log = LogManager.getLogger(HeadlessServer.class);
+    for (String note : HeadlessSettings.notes()) {
+      log.info(note);
+    }
     MapTool.setHeadless(true);
 
     // MapTool.main() reads the version from the jar manifest; a headless entry point never runs

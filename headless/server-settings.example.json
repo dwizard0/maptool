@@ -1,0 +1,14 @@
+{
+  "port": 51234,
+  "gmPassword": "change-me-gm",
+  "playerPassword": "change-me-player",
+  "campaign": "campaigns/my-game.cmpgn",
+  "save": "campaigns/my-game.cmpgn",
+  "autosaveMinutes": 5,
+  "register": false,
+  "name": "My MapTool Server",
+  "policy": {
+    "useIndividualViews": true,
+    "playersReceiveCampaignMacros": true
+  }
+}

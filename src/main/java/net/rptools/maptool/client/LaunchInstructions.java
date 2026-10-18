@@ -17,6 +17,8 @@ package net.rptools.maptool.client;
 import java.util.Properties;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import net.rptools.maptool.server.HeadlessServer;
+import net.rptools.maptool.server.HeadlessSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -52,6 +54,13 @@ public class LaunchInstructions {
   }
 
   public static void main(String[] args) {
+    // "-headless" or "-headless:<settings file>" starts a dedicated server instead of the client.
+    // This must come first: everything below assumes a desktop, and the server sets up logging
+    // its own way.
+    if (HeadlessSettings.headlessArgument(args).isPresent()) {
+      HeadlessServer.main(args);
+      return;
+    }
     try {
       // This is called just to make sure there's a valid data dir
       AppUtil.getAppHome();

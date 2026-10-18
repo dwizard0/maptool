@@ -88,7 +88,19 @@ final class HeadlessServerProcess {
    */
   static Exited startExpectingFailure(Path home, String name, Map<String, String> properties)
       throws IOException, InterruptedException {
-    var server = launch(home, name, properties);
+    return startExpectingFailure(home, name, properties, List.of());
+  }
+
+  /**
+   * Start a server that is expected not to start, with program arguments.
+   *
+   * @return the exit code and everything the server wrote
+   */
+  static Exited startExpectingFailure(
+      Path home, String name, Map<String, String> properties, List<String> args)
+      throws IOException, InterruptedException {
+    var server =
+        launch(home, name, properties, freePort(), true, HeadlessServer.class.getName(), args);
     if (!server.process.waitFor(START_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
       server.process.destroyForcibly();
       fail(
@@ -103,13 +115,65 @@ final class HeadlessServerProcess {
   /** How a server that did not start ended. */
   record Exited(int exitCode, String output) {}
 
+  /**
+   * Start a server the way a user would from an installed MapTool: through the normal launcher,
+   * with {@code -headless:<file>} and every setting -- port and passwords included -- in that file
+   * rather than on the command line.
+   *
+   * @param home the directory the server may write to; the settings file is written here
+   * @param name a name for this run, used for the console output file
+   * @param settings further settings for the file, as JSON members (e.g. {@code "\"name\": \"x\""})
+   * @return the running server
+   */
+  static HeadlessServerProcess startFromSettingsFile(Path home, String name, String settings)
+      throws IOException, InterruptedException {
+    int port = freePort();
+    Path file = home.resolve(name + "-settings.json");
+    String json =
+        "{\"port\": "
+            + port
+            + ", \"gmPassword\": \""
+            + GM_PASSWORD
+            + "\", \"playerPassword\": \""
+            + PLAYER_PASSWORD
+            + "\", \"version\": \""
+            + VERSION
+            + "\""
+            + (settings.isBlank() ? "" : ", " + settings)
+            + "}";
+    Files.writeString(file, json, StandardCharsets.UTF_8);
+    var server =
+        launch(
+            home,
+            name,
+            Map.of(),
+            port,
+            false,
+            "net.rptools.maptool.client.LaunchInstructions",
+            List.of("-headless:" + file.toAbsolutePath()));
+    server.awaitListening();
+    return server;
+  }
+
   private static HeadlessServerProcess launch(
       Path home, String name, Map<String, String> properties) throws IOException {
+    return launch(
+        home, name, properties, freePort(), true, HeadlessServer.class.getName(), List.of());
+  }
+
+  private static HeadlessServerProcess launch(
+      Path home,
+      String name,
+      Map<String, String> properties,
+      int port,
+      boolean settingsOnCommandLine,
+      String mainClass,
+      List<String> args)
+      throws IOException {
     String classpath = System.getProperty("maptool.e2e.classpath");
     if (classpath == null || classpath.isBlank()) {
       fail("maptool.e2e.classpath is not set; run this test with ./gradlew headlessEndToEndTest");
     }
-    int port = freePort();
     Path output = home.resolve(name + ".out");
 
     List<String> command = new ArrayList<>();
@@ -122,14 +186,17 @@ final class HeadlessServerProcess {
     command.add("-Djava.awt.headless=true");
     command.add("-Duser.home=" + home.toAbsolutePath());
     command.add("-DMAPTOOL_DATADIR=" + home.resolve("data").toAbsolutePath());
-    command.add("-Dmaptool.port=" + port);
-    command.add("-Dmaptool.gmPassword=" + GM_PASSWORD);
-    command.add("-Dmaptool.playerPassword=" + PLAYER_PASSWORD);
-    command.add("-Dmaptool.version=" + VERSION);
+    if (settingsOnCommandLine) {
+      command.add("-Dmaptool.port=" + port);
+      command.add("-Dmaptool.gmPassword=" + GM_PASSWORD);
+      command.add("-Dmaptool.playerPassword=" + PLAYER_PASSWORD);
+      command.add("-Dmaptool.version=" + VERSION);
+    }
     properties.forEach((key, value) -> command.add("-D" + key + "=" + value));
     command.add("-cp");
     command.add(classpath);
-    command.add(HeadlessServer.class.getName());
+    command.add(mainClass);
+    command.addAll(args);
 
     Process process =
         new ProcessBuilder(command)

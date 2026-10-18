@@ -795,6 +795,43 @@ class HeadlessServerEndToEndTest {
         exited.output());
   }
 
+  @Test
+  void theNormalLauncherStartsAServerFromASettingsFile() throws Exception {
+    // Everything -- port and passwords included -- comes from the file; nothing is given with -D.
+    // The save path is relative, so it must end up beside the settings file.
+    Files.createDirectories(home.resolve("saves"));
+    var server =
+        HeadlessServerProcess.startFromSettingsFile(
+            home, "settings-file", "\"autosaveMinutes\": 0, \"save\": \"saves/game.cmpgn\"");
+    servers.add(server);
+    int port = server.port();
+
+    var gm = login(port, "E2E GM", HeadlessServerProcess.GM_PASSWORD);
+    assertEquals(RoleDto.GM, gm.accepted().getRoleDto(), "GM password from the file");
+    var player = login(port, "E2E Player", HeadlessServerProcess.PLAYER_PASSWORD);
+    assertEquals(RoleDto.PLAYER, player.accepted().getRoleDto(), "player password from the file");
+    assertRefused(
+        HandshakeResponseCodeMsg.INVALID_PASSWORD,
+        attempt(port, "E2E Intruder", "not-the-password", HeadlessServerProcess.VERSION));
+
+    String output = stop(server);
+    assertTrue(output.contains("Settings from "), output);
+    assertTrue(
+        Files.isRegularFile(home.resolve("saves/game.cmpgn")),
+        "the final save went to the path the file named, relative to the file:\n" + output);
+  }
+
+  @Test
+  void aMisspeltSettingStopsTheServerAndSaysWhich() throws Exception {
+    Path file = home.resolve("typo-settings.json");
+    Files.writeString(file, "{\"prot\": 51234}");
+    var exited =
+        HeadlessServerProcess.startExpectingFailure(
+            home, "typo", Map.of(), List.of("-headless:" + file.toAbsolutePath()));
+    assertEquals(1, exited.exitCode(), exited.output());
+    assertTrue(exited.output().contains("Unknown setting \"prot\""), exited.output());
+  }
+
   private void assertPerPlayerLogins(int port) throws Exception {
     String version = HeadlessServerProcess.VERSION;
     // A password only opens its own player's login.
