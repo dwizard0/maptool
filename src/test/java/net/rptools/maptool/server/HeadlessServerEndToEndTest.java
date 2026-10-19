@@ -835,6 +835,40 @@ class HeadlessServerEndToEndTest {
     assertTrue(log.contains("Unknown setting \"prot\""), log);
   }
 
+  @Test
+  void theStopCommandStopsAServerStartedFromASettingsFileWithAFinalSave() throws Exception {
+    // The clean stop for Windows, where MapTool's launcher has no console to press Ctrl+C in.
+    Files.createDirectories(home.resolve("saves"));
+    var server =
+        HeadlessServerProcess.startFromSettingsFile(
+            home, "stoppable", "\"autosaveMinutes\": 0, \"save\": \"saves/stopped.cmpgn\"");
+    servers.add(server);
+    String settings = home.resolve("stoppable-settings.json").toAbsolutePath().toString();
+
+    var second =
+        HeadlessServerProcess.runLauncher(home, "second-server", List.of("-headless:" + settings));
+    assertEquals(1, second.exitCode(), second.output());
+    assertTrue(second.output().contains("already running"), second.output());
+
+    var stop =
+        HeadlessServerProcess.runLauncher(
+            home, "stop-command", List.of("-headless-stop:" + settings));
+    assertEquals(0, stop.exitCode(), stop.output());
+    assertTrue(stop.output().contains("The server has stopped"), stop.output());
+
+    var exited = server.awaitExit();
+    assertEquals(0, exited.exitCode(), exited.output());
+    assertTrue(exited.output().contains("Stop requested"), exited.output());
+    assertTrue(exited.output().contains("Writing final campaign save"), exited.output());
+    assertTrue(Files.isRegularFile(home.resolve("saves/stopped.cmpgn")), exited.output());
+
+    var again =
+        HeadlessServerProcess.runLauncher(
+            home, "stop-again", List.of("-headless-stop:" + settings));
+    assertEquals(1, again.exitCode(), again.output());
+    assertTrue(again.output().contains("No server is running"), again.output());
+  }
+
   private void assertPerPlayerLogins(int port) throws Exception {
     String version = HeadlessServerProcess.VERSION;
     // A password only opens its own player's login.

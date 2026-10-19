@@ -155,6 +155,30 @@ final class HeadlessServerProcess {
     return server;
   }
 
+  /**
+   * Run MapTool's normal launcher with these arguments and wait for it to exit, as a user would run
+   * {@code MapTool -headless-stop:<file>}.
+   *
+   * @return the exit code and everything it wrote
+   */
+  static Exited runLauncher(Path home, String name, List<String> args)
+      throws IOException, InterruptedException {
+    var run =
+        launch(
+            home,
+            name,
+            Map.of(),
+            freePort(),
+            false,
+            "net.rptools.maptool.client.LaunchInstructions",
+            args);
+    if (!run.process.waitFor(STOP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+      run.process.destroyForcibly();
+      fail("The launcher did not exit within " + STOP_TIMEOUT + ":\n" + run.output());
+    }
+    return new Exited(run.process.exitValue(), run.output());
+  }
+
   private static HeadlessServerProcess launch(
       Path home, String name, Map<String, String> properties) throws IOException {
     return launch(
@@ -256,6 +280,19 @@ final class HeadlessServerProcess {
       fail("The server did not stop within " + STOP_TIMEOUT + ":\n" + output());
     }
     return output();
+  }
+
+  /**
+   * Wait for the server to exit by itself, without signalling it.
+   *
+   * @return its exit code and console output
+   */
+  Exited awaitExit() throws InterruptedException {
+    if (!process.waitFor(STOP_TIMEOUT.toSeconds(), TimeUnit.SECONDS)) {
+      process.destroyForcibly();
+      fail("The server did not exit within " + STOP_TIMEOUT + ":\n" + output());
+    }
+    return new Exited(process.exitValue(), output());
   }
 
   /** Kill the server if a test failed before stopping it. */

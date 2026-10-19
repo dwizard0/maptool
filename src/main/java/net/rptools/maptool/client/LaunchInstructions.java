@@ -19,6 +19,7 @@ import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import net.rptools.maptool.server.HeadlessServer;
 import net.rptools.maptool.server.HeadlessSettings;
+import net.rptools.maptool.server.HeadlessStop;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.ThreadContext;
@@ -54,6 +55,12 @@ public class LaunchInstructions {
   }
 
   public static void main(String[] args) {
+    // "-headless-stop:<settings file>" asks a server started from that file to stop. Like the
+    // server, it must not set up the client's logging, which would rotate the server's log.
+    if (HeadlessStop.stopArgument(args).isPresent()) {
+      HeadlessStop.main(args);
+      return;
+    }
     // "-headless" or "-headless:<settings file>" starts a dedicated server instead of the client.
     // This must come first: everything below assumes a desktop, and the server sets up logging
     // its own way.

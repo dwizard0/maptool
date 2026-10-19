@@ -116,14 +116,29 @@ keep a server's logs and preferences apart from a client on the same machine,
 set `JAVA_TOOL_OPTIONS=-DMAPTOOL_DATADIR=<folder>` before starting it.
 
 On Linux, stopping the process normally (Ctrl+C, `kill`, `systemctl stop`)
-writes a final save. **On Windows there is no clean way to stop a server
-started through `MapTool.exe`**: the launcher is a windowed program with no
+writes a final save. **On Windows, Windows itself offers no clean way to stop
+a server started through `MapTool.exe`**: the launcher is a windowed program with no
 console, so there is no Ctrl+C; a close request (`taskkill` without `/F`) is
 ignored by the server process, and sent to the launcher's wrapper process it
 shows "GetMessage() failed" and then ends the server without a final save.
-Until MapTool ships a console launcher for this, changes since the last
-autosave are lost when a Windows server is stopped, so keep
-`autosaveMinutes` short there.
+
+**Stopping a server started from a settings file**, on any system, and the
+only clean way on Windows: run MapTool again with `-headless-stop:` and the
+same settings file.
+
+```
+MapTool.exe -headless-stop:C:\maptool\server-settings.json
+```
+
+The server notices within a second, writes its final save and exits; the
+command waits until it has (up to five minutes, `-Dmaptool.stopTimeoutSeconds`
+to change) and exits with 0 when the server has stopped, 1 if no server was
+running from that file or it did not stop in time, and 2 if the command was
+wrong. It works through two files beside the settings file:
+`<file>.lock`, which the server holds locked while it runs (so a second server
+cannot be started from the same file), and `<file>.stop`, the request itself.
+From PowerShell, `Start-Process MapTool.exe -ArgumentList '-headless-stop:<file>' -Wait -PassThru`
+shows the exit code, since `MapTool.exe` has no console.
 
 **Memory.** The server holds the whole campaign, including every add-on's
 game data, and builds a copy of it for each client that joins. 2G is plenty

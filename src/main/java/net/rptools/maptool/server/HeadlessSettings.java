@@ -111,7 +111,7 @@ public final class HeadlessSettings {
     return Optional.empty();
   }
 
-  private static String stripQuotes(String value) {
+  static String stripQuotes(String value) {
     if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
       return value.substring(1, value.length() - 1);
     }

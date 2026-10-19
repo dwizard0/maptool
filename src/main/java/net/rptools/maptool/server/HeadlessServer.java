@@ -21,6 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.CountDownLatch;
@@ -62,6 +63,9 @@ import org.apache.logging.log4j.Logger;
 public class HeadlessServer {
   private static final String POLICY_PREFIX = "maptool.policy.";
 
+  /** Held for the life of a server started from a settings file; see {@link HeadlessStop}. */
+  private static HeadlessStop.Claim stopClaim;
+
   public static void main(String[] args) {
     try {
       run(args);
@@ -85,6 +89,25 @@ public class HeadlessServer {
       HeadlessSettings.applyFromArguments(args);
     } catch (IOException | IllegalArgumentException e) {
       settingsError = e;
+    }
+    // A server started from a settings file can be stopped with -headless-stop:<file>, the only
+    // clean way on Windows, where MapTool's launcher has no console. The file is claimed before
+    // logging starts: a second server from the same file must not rotate the running one's log,
+    // so it only says why it is not starting.
+    Path settingsFile = null;
+    Optional<String> settingsArgument = HeadlessSettings.headlessArgument(args);
+    if (settingsError == null
+        && settingsArgument.isPresent()
+        && !settingsArgument.get().isBlank()) {
+      settingsFile = Path.of(settingsArgument.get()).toAbsolutePath();
+      try {
+        stopClaim = HeadlessStop.claim(settingsFile);
+      } catch (IllegalStateException e) {
+        System.err.println(e.getMessage());
+        System.exit(1);
+      } catch (IOException e) {
+        settingsError = e;
+      }
     }
     System.setProperty("java.awt.headless", "true");
     // Log4j normally stops itself from a shutdown hook of its own. Shutdown hooks run in no set
@@ -209,6 +232,16 @@ public class HeadlessServer {
     log.info("Headless MapTool server listening on port {}", port);
     log.info("Reporting version: {}", MapTool.getVersion());
     log.info("Campaign has {} zone(s)", campaign.getZones().size());
+
+    if (stopClaim != null) {
+      // Exiting runs the shutdown hook above, which writes the final save.
+      stopClaim.watch(
+          () -> {
+            log.info("Stop requested with {}", HeadlessStop.ARGUMENT);
+            System.exit(0);
+          });
+      log.info("To stop this server cleanly: MapTool {}:{}", HeadlessStop.ARGUMENT, settingsFile);
+    }
 
     new CountDownLatch(1).await();
   }
