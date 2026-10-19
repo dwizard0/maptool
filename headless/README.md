@@ -110,9 +110,20 @@ java <JVM options> -cp <classpath> net.rptools.maptool.client.LaunchInstructions
 - The file holds passwords: keep it readable only by the account that runs the
   server.
 
-Not yet tried with an installed MapTool's own launcher (`MapTool.exe`,
-`/opt/maptool/bin/MapTool`); it passes the needed JVM options, so
-`MapTool -headless:<file>` is expected to work there too.
+Tested with installed MapTool's own launchers: `MapTool -headless:<file>` on
+Linux and `MapTool.exe -headless:<file>` on Windows both start the server. To
+keep a server's logs and preferences apart from a client on the same machine,
+set `JAVA_TOOL_OPTIONS=-DMAPTOOL_DATADIR=<folder>` before starting it.
+
+On Linux, stopping the process normally (Ctrl+C, `kill`, `systemctl stop`)
+writes a final save. **On Windows there is no clean way to stop a server
+started through `MapTool.exe`**: the launcher is a windowed program with no
+console, so there is no Ctrl+C; a close request (`taskkill` without `/F`) is
+ignored by the server process, and sent to the launcher's wrapper process it
+shows "GetMessage() failed" and then ends the server without a final save.
+Until MapTool ships a console launcher for this, changes since the last
+autosave are lost when a Windows server is stopped, so keep
+`autosaveMinutes` short there.
 
 **Memory.** The server holds the whole campaign, including every add-on's
 game data, and builds a copy of it for each client that joins. 2G is plenty
