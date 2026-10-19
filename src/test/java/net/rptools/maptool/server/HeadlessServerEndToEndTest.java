@@ -830,6 +830,9 @@ class HeadlessServerEndToEndTest {
             home, "typo", Map.of(), List.of("-headless:" + file.toAbsolutePath()));
     assertEquals(1, exited.exitCode(), exited.output());
     assertTrue(exited.output().contains("Unknown setting \"prot\""), exited.output());
+    // MapTool's own launcher on Windows has no console, so the error must reach the log too.
+    String log = Files.readString(home.resolve("data").resolve("logs").resolve("maptool.log"));
+    assertTrue(log.contains("Unknown setting \"prot\""), log);
   }
 
   private void assertPerPlayerLogins(int port) throws Exception {

@@ -15,6 +15,7 @@
 package net.rptools.maptool.server;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -76,8 +77,15 @@ public class HeadlessServer {
 
   private static void run(String[] args) throws Exception {
     // Before anything reads a maptool.* property: a settings file named with -headless:<file>
-    // supplies them.
-    HeadlessSettings.applyFromArguments(args);
+    // supplies them. A bad file is reported only once logging is set up: a server started from
+    // MapTool's own launcher on Windows has no console, so the log is the only place the
+    // error can be seen.
+    Exception settingsError = null;
+    try {
+      HeadlessSettings.applyFromArguments(args);
+    } catch (IOException | IllegalArgumentException e) {
+      settingsError = e;
+    }
     System.setProperty("java.awt.headless", "true");
     // Log4j normally stops itself from a shutdown hook of its own. Shutdown hooks run in no set
     // order, so that could happen before the hook below had written the final save, and the save's
@@ -88,6 +96,9 @@ public class HeadlessServer {
     // to a directory literally named that.
     AppUtil.initLogging();
     Logger log = LogManager.getLogger(HeadlessServer.class);
+    if (settingsError != null) {
+      throw settingsError;
+    }
     for (String note : HeadlessSettings.notes()) {
       log.info(note);
     }
