@@ -54,7 +54,7 @@ public class ImpersonateMacro implements Macro {
     }
     // With no map to look on -- no map open, or no window at all, as on a server run without a
     // UI -- there is no token, and the name is impersonated on its own, as it is for a name that
-    // no token has. This used to fail with a NullPointerException instead.
+    // no token has.
     Zone zone = MapTool.getCurrentZone();
     Token token = zone == null ? null : zone.resolveToken(name);
     if (token != null) {
@@ -72,9 +72,6 @@ public class ImpersonateMacro implements Macro {
     // Impersonate
     if (index > 0) {
       // Enter impersonation context for the duration of the macro
-      // Not wrapped in try/finally, as before: MacroManager.executeMacro catches the exceptions a
-      // macro normally throws, so the leave is reached. Making it a finally block would be a
-      // separate behaviour change.
       identities.enterContextIdentity(new TokenIdentity(token, name));
       MacroManager.executeMacro(macro, executionContext);
       identities.leaveContextIdentity();

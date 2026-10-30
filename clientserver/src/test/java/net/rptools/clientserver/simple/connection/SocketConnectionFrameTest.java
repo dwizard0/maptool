@@ -111,11 +111,9 @@ class SocketConnectionFrameTest {
   @Test
   void anOrdinaryDisconnectIsNotTreatedAsAnError() {
     assertTrue(SocketConnection.isRoutineDisconnect(new IOException("Stream closed")));
-    assertTrue(
-        SocketConnection.isRoutineDisconnect(new java.net.SocketException("Connection reset")));
+    assertTrue(SocketConnection.isRoutineDisconnect(new java.net.SocketException("Connection reset")));
     assertFalse(
-        SocketConnection.isRoutineDisconnect(
-            new EOFException("Stream closed after 4 of 100 bytes")));
+        SocketConnection.isRoutineDisconnect(new EOFException("Stream closed after 4 of 100 bytes")));
     assertFalse(
         SocketConnection.isRoutineDisconnect(
             new IOException("Message length -1 is outside 0..2147483647")));

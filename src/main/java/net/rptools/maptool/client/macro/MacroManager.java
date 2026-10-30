@@ -320,17 +320,17 @@ public class MacroManager {
         if (def == null || def.expandRolls()) {
           Token tokenInContext = null;
           // getCurrentZone() rather than the frame, so that with no window at all (a server run
-          // without a UI) this behaves as it always has with no map open: the command has no token
-          // in context.
+          // without a UI) this behaves as it does with no map open: the command has no token in
+          // context.
           Zone zone = MapTool.getCurrentZone();
           if (zone != null) {
             // The token a chat command runs against is whoever the player is speaking as, which
-            // the client keeps (not the chat panel). Property references, currentToken() and the
-            // like in the command all resolve against this token.
+            // the client keeps. Property references, currentToken() and the like in the command
+            // all resolve against this token.
             //
             // When nothing is impersonated, getIdentity() is the player's name, so a token named
-            // exactly like the player becomes the token in context. That is long-standing
-            // behaviour that frameworks may rely on, and is kept deliberately.
+            // exactly like the player becomes the token in context. Frameworks may rely on this,
+            // so it is deliberate.
             final ImpersonationState identity = MapTool.getClient().getImpersonation();
             if (identity.getIdentityGUID() != null)
               tokenInContext = zone.getToken(identity.getIdentityGUID());
