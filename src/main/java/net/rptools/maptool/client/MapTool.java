@@ -1244,12 +1244,13 @@ public class MapTool {
   /**
    * Send the campaign's macro buttons to the server.
    *
-   * <p>These macros live in the campaign, so every change to them has to be published or the server
-   * never learns about it. When this client hosts the game that happens for free, as the campaign
-   * it edits is the campaign the server serves, which is why a missing call here is invisible until
-   * the game is run on a dedicated server: the macro is then absent from saves and from the
-   * campaign handed to joining clients. Callers that change these macros should call this
-   * afterwards rather than talking to the server themselves, so that there is one place to look.
+   * <p>These macros live in the campaign, so every change to them has to be published. The server
+   * passes it on to the other connected clients; without it they keep showing the old macros. When
+   * this client is not the host -- a GM connected to a game someone else hosts, or to a dedicated
+   * server -- the server's own campaign also changes only through this, so an unpublished change
+   * stays on this client: it is missing from the host's saves and from the campaign later clients
+   * receive. Callers that change these macros should call this afterwards rather than talking to
+   * the server themselves, so that there is one place to look.
    *
    * @param gmPanel whether the GM panel's macros changed rather than the campaign panel's
    */

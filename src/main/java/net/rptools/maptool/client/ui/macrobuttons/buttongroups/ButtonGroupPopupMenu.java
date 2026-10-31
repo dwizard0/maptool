@@ -786,6 +786,9 @@ public class ButtonGroupPopupMenu extends JPopupMenu {
             || panelClass.equals("GlobalPanel")
             || panelClass.equals("GmPanel")) {
           areaGroup.getPanel().renameMacroGroup(macroGroup, newMacroGroupName);
+          if (!panelClass.equals("GlobalPanel")) {
+            MapTool.publishCampaignMacros(panelClass.equals("GmPanel"));
+          }
         } else if (tokenId != null) {
           getToken().renameMacroGroup(macroGroup, newMacroGroupName);
         }
