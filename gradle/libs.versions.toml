@@ -30,7 +30,7 @@ icu4j = { group = "com.ibm.icu", name = "icu4j", version = "79.1" }
 # Networking
 # Web RTC
 websocket = { group = "org.java-websocket", name = "Java-WebSocket", version = "1.6.0" }
-webrtc = { group = "dev.onvoid.webrtc", name = "webrtc-java", version = "0.11.0" }
+webrtc = { group = "dev.onvoid.webrtc", name = "webrtc-java", version = "0.19.0" }
 # compression of messages between client and server
 apache-commons-compress = { group = "org.apache.commons", name = "commons-compress", version = "1.28.0" }
 zstd = { group = "com.github.luben", name = "zstd-jni", version = "1.5.7-24" }
@@ -60,8 +60,6 @@ batik-transcoder = { group = "org.apache.xmlgraphics", name="batik-transcoder", 
 # PDF image extraction
 pdfbox = { group = "org.apache.pdfbox", name = "pdfbox", version.ref = "pdfbox" }
 pdfbox-tools = { group = "org.apache.pdfbox", name = "pdfbox-tools", version.ref = "pdfbox" }
-# To decrypt passworded/secured PDFs
-bcmail = { group = "org.bouncycastle", name = "bcmail-jdk18on", version = "1.81" }
 # For pdf image extraction, specifically for jpeg2000 (jpx) support.
 jai-imageio-core = { group = "com.github.jai-imageio", name = "jai-imageio-core", version.ref = "jai-imageio" }
 jai-imageio-jpeg = { group = "com.github.jai-imageio", name = "jai-imageio-jpeg2000", version.ref = "jai-imageio" }
@@ -107,17 +105,17 @@ apache-commons-net = { group = "commons-net", name = "commons-net", version = "3
 # commandline parsing
 apache-commons-cli = { group = "commons-cli", name = "commons-cli", version = "1.11.0" }
 # String utilities
-apache-commons-lang = { group = "org.apache.commons", name = "commons-lang3", version = "3.18.0" }
+apache-commons-lang = { group = "org.apache.commons", name = "commons-lang3", version = "3.21.0" }
 # needed for preference dialog at runtime
 apache-commons-beanutils = { group = "commons-beanutils", name = "commons-beanutils", version = "1.11.0" }
 # For determining file type
-apache-tika = { group = "org.apache.tika", name = "tika-core", version = "3.2.1" }
+apache-tika = { group = "org.apache.tika", name = "tika-core", version = "4.1.0" }
 
 # Parsing and serialization
 # Better JSON functions
 gson = { group = "com.google.code.gson", name = "gson", version = "2.14.0" }
 # JsonPath for java
-jsonpath = { group = "com.jayway.jsonpath", name = "json-path", version = "2.9.0" }
+jsonpath = { group = "com.jayway.jsonpath", name = "json-path", version = "2.10.0" }
 # HTML parsing
 jsoup = { group = "org.jsoup", name = "jsoup", version = "1.23.2" }
 # XML utilities, for Hero Lab integration
