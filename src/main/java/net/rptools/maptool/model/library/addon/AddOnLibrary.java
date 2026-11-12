@@ -680,7 +680,7 @@ public class AddOnLibrary implements Library {
     if (ModelThread.isModelThread()) {
       var resolver = new MapToolVariableResolver(null);
       try {
-        MapTool.getParser().runMacro(resolver, null, name + "@lib:" + namespace, "");
+        MapTool.getParser().runMacro(resolver, name + "@lib:" + namespace, "", true);
       } catch (ParserException e) {
         throw new CompletionException(e);
       }
@@ -689,7 +689,7 @@ public class AddOnLibrary implements Library {
           () -> {
             var resolver = new MapToolVariableResolver(null);
             try {
-              MapTool.getParser().runMacro(resolver, null, name + "@lib:" + namespace, "");
+              MapTool.getParser().runMacro(resolver, name + "@lib:" + namespace, "", true);
             } catch (ParserException e) {
               throw new CompletionException(e);
             }

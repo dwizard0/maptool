@@ -25,6 +25,7 @@ import net.rptools.maptool.client.AppPreferences;
 import net.rptools.maptool.client.MapTool;
 import net.rptools.maptool.client.MapToolMacroContext;
 import net.rptools.maptool.client.MapToolUtil;
+import net.rptools.maptool.client.MapToolVariableResolver;
 import net.rptools.maptool.client.macro.MacroLocation;
 import net.rptools.maptool.client.macro.MacroLocationFactory;
 import net.rptools.maptool.client.ui.macrobuttons.MacroButtonHotKeyManager;
@@ -446,7 +447,7 @@ public class MacroButtonProperties implements Comparable<MacroButtonProperties> 
    *
    * <p>Deleting a macro does not come through here, so those paths publish for themselves. See
    * {@link MapTool#publishCampaignMacros(boolean)}, which explains why publishing matters at all
-   * and why a missing call is invisible until the game is run on a dedicated server.
+   * and when a missing call goes unnoticed.
    */
   public void save() {
     if (saveLocation.equals("Token") && tokenId != null) {
@@ -822,7 +823,7 @@ public class MacroButtonProperties implements Comparable<MacroButtonProperties> 
             token.getName(),
             token.getId());
       }
-      return MapTool.getParser().parseLine(token, toolTip, context);
+      return MapTool.getParser().parseLine(new MapToolVariableResolver(token), toolTip, context);
     } catch (ParserException pe) {
       return toolTip;
     }

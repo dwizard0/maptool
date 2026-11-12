@@ -726,7 +726,8 @@ public class InitiativeList implements Serializable {
                 libraryNamespace,
                 argStr,
                 null,
-                Collections.emptyMap());
+                Collections.emptyMap(),
+                false);
           } catch (InterruptedException | ExecutionException e) {
             // Should not be possible
             throw new AssertionError("Error retrieving library namespace");

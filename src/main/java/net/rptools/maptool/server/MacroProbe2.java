@@ -22,6 +22,7 @@ import net.rptools.maptool.client.AppSetup;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.AssetURLStreamHandler;
 import net.rptools.maptool.client.MapTool;
+import net.rptools.maptool.client.MapToolVariableResolver;
 import net.rptools.maptool.model.Campaign;
 import net.rptools.maptool.model.Token;
 import net.rptools.maptool.model.Zone;
@@ -106,7 +107,8 @@ public class MacroProbe2 {
 
   private static void run(String expression, Token context) {
     try {
-      String result = MapTool.getParser().parseLine(context, expression);
+      String result =
+          MapTool.getParser().parseLine(new MapToolVariableResolver(context), expression, null);
       System.out.println("OK    " + expression + "  ->  " + result);
     } catch (Throwable t) {
       System.out.println(

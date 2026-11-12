@@ -14,9 +14,12 @@
  */
 package net.rptools.maptool.client;
 
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Properties;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
+import net.rptools.maptool.language.I18N;
 import net.rptools.maptool.server.HeadlessServer;
 import net.rptools.maptool.server.HeadlessSettings;
 import net.rptools.maptool.server.HeadlessStop;
@@ -83,6 +86,17 @@ public class LaunchInstructions {
        */
       if (mem < 200 * 1024 * 1024) {
         JOptionPane.showMessageDialog(new JFrame(), msg, "Usage", JOptionPane.INFORMATION_MESSAGE);
+      }
+
+      // Set the locale. Needs to be very early so nothing (including I18N) gets initialized first.
+      {
+        // AppPreferences can override the system locale. If no override present, use the system
+        // locale.
+        var systemLocale = Locale.getDefault();
+        var selectedLocale = Objects.requireNonNullElse(AppPreferences.locale.get(), systemLocale);
+        Locale.setDefault(selectedLocale);
+        // In case I18N already got initialized, update it.
+        I18N.setLocale(selectedLocale);
       }
 
       MapTool.main(args);

@@ -59,6 +59,7 @@ import org.fife.rsta.ui.search.SearchEvent;
 import org.fife.rsta.ui.search.SearchListener;
 import org.fife.ui.autocomplete.AutoCompletion;
 import org.fife.ui.autocomplete.CompletionProvider;
+import org.fife.ui.autocomplete.DescWindowVisibility;
 import org.fife.ui.rsyntaxtextarea.AbstractTokenMakerFactory;
 import org.fife.ui.rsyntaxtextarea.ErrorStrip;
 import org.fife.ui.rsyntaxtextarea.RSyntaxTextArea;
@@ -491,7 +492,7 @@ public class MacroEditorDialog extends JDialog implements SearchListener {
     ac.setAutoCompleteEnabled(true);
     ac.setAutoActivationEnabled(true);
     ac.setAutoActivationDelay(500);
-    ac.setShowDescWindow(true);
+    ac.setDescWindowVisibility(DescWindowVisibility.ALWAYS);
     ac.setAutoCompleteSingleChoices(false);
     ac.install(macroEditorRSyntaxTextArea);
 
@@ -755,10 +756,8 @@ public class MacroEditorDialog extends JDialog implements SearchListener {
       properties.setToolTip(getToolTipTextField().getText());
       properties.setDisplayHotKey(getDisplayHotkeyCheckBox().isSelected());
 
-      // This also publishes the macro to the server where that applies, so there is nothing more
-      // to do for campaign and GM macros here. It used to be done below instead, inside the button
-      // check, which a newly created macro does not pass: the dialog is opened with the properties
-      // alone, before any button for the macro exists.
+      // This also publishes campaign and GM macros to the server, including a newly created one,
+      // for which no button exists yet.
       properties.save();
 
       if (button != null) {

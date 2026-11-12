@@ -21,6 +21,7 @@ import net.rptools.maptool.client.AppSetup;
 import net.rptools.maptool.client.AppUtil;
 import net.rptools.maptool.client.AssetURLStreamHandler;
 import net.rptools.maptool.client.MapTool;
+import net.rptools.maptool.client.MapToolVariableResolver;
 import net.rptools.maptool.model.library.LibraryManager;
 import net.rptools.maptool.model.library.url.LibraryURLStreamHandler;
 
@@ -60,7 +61,8 @@ public class MacroProbe {
     System.out.println("=== headless macro evaluation ===");
     for (String expression : EXPRESSIONS) {
       try {
-        String result = MapTool.getParser().parseLine(expression);
+        String result =
+            MapTool.getParser().parseLine(new MapToolVariableResolver(null), expression, null);
         System.out.println("OK    " + expression + "  ->  " + result);
       } catch (Throwable t) {
         System.out.println(
